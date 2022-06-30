@@ -161,7 +161,7 @@ list-filter()
 
 	if [ "$modtime_pimp_list_post" != "$modtime_pimp_list_pre" ]
 	then
-		pimp play
+		item-play
 	fi
 }
 
