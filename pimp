@@ -1,0 +1,220 @@
+#!/bin/bash
+
+#${FPATH_PIMP_LIST:="$HOME/.cache/pimp.list"}
+#${DPATH_MUSIC:="$HOME/Music"}
+#ffmpeg v4.0, espeak v1.48.15, mpv v0.33.0
+
+clear()
+{
+	echo -ne '\033c'
+}
+
+check-prerequisites()
+{
+	programs=(espeak ffmpeg mpv)
+
+	for i in "${programs[@]}"
+	do
+		which "$i" > /dev/null 2>&1 || return 1
+	done
+}
+
+create-list()
+{
+	if [ -d "$@" ]
+	then
+		dpath_full="$(realpath "$@")"
+		find -L "$dpath_full" -type f | sort > "$FPATH_PIMP_LIST"
+	fi
+}
+
+item-play()
+{
+	pkill espeak
+	pkill ffplay
+
+	for i in "$@"
+	do
+		create-list "$i"
+		break
+	done
+
+	if [ -f "$FPATH_PIMP_LIST" ]
+	then
+		clear
+		printf 'PiMP: Initiating the slap... (⌐■_■)\n\n'
+
+		item-sound play
+
+		mpv \
+			--shuffle \
+			--no-audio-display \
+			--no-video \
+			--loop-playlist=inf \
+			--loop-file=no \
+			--display-tags= \
+			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
+			--config-dir="$DPATH_PIMP/etc/mpv" \
+			--playlist="$FPATH_PIMP_LIST" \
+			"$@"
+	else
+		printf 'PiMP: cannot find %s\n' "$FPATH_PIMP_LIST" >&2
+		return 1
+	fi
+}
+
+item-sound()
+{
+	case "$@" in
+		select)
+			ffplay -f lavfi -i 'sine=frequency=2000:duration=0.025' \
+				-autoexit -nodisp > /dev/null 2>&1
+#			mpv \
+#				--really-quiet \
+#				--loop-file=no \
+#				--no-load-scripts \
+#				--volume=150 \
+#				"$DPATH_PIMP/usr/share/select.opus"
+			;;
+		play)
+			ffplay -f lavfi -i 'sine=frequency=1000:duration=0.025' \
+				-autoexit -nodisp > /dev/null 2>&1
+#			mpv \
+#				--really-quiet \
+#				--loop-file=no \
+#				--no-load-scripts \
+#				--volume=150 \
+#				"$DPATH_PIMP/usr/share/play.opus"
+			;;
+		*)
+			ffplay -f lavfi -i 'sine=frequency=2000:duration=0.025' \
+				-autoexit -nodisp > /dev/null 2>&1
+#			mpv \
+#				--really-quiet \
+#				--loop-file=no \
+#				--no-load-scripts \
+#				--volume=150 \
+#				"$DPATH_PIMP/usr/share/select.opus"
+			;;
+	esac
+}
+
+list-dirs()
+{
+	find -L -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | fzf -i -s -m -e \
+		--header='PiMP (⌐■_■)' \
+		--header-first \
+		--border=rounded \
+		--color=fg:7,bg:0,fg+:0,bg+:10,hl:9,hl+:1,border:10,gutter:0,header:10,prompt:7,info:10 \
+		--prompt '> ' \
+		--algo=v1 \
+		--literal \
+		--cycle \
+		--tac \
+		--no-mouse \
+		--header-lines=0 \
+		--layout=reverse \
+		--preview '(printf "%s" {} | sed "s/\//, /g" | espeak -a 250 -s 300 && ffplay -f lavfi -i "sine=frequency=2000:duration=0.025" -nodisp -autoexit)' \
+		--preview-window 0% \
+		--bind "enter:execute(pimp play {} && pimp play-sound select)" \
+		--bind 'change:first' \
+		--bind 'backward-eof:execute-silent(printf clear | espeak -a 250 -s 300)' \
+		--bind 'bspace:clear-query' \
+		--bind 'home:first' \
+		--bind 'end:last' \
+		--bind 'insert:abort' \
+		--bind 'alt-q:abort' \
+		--bind 'ctrl-q:abort' \
+		--bind 'tab:abort'
+}
+
+list-filter()
+{
+	modtime_pimp_list_pre="$(stat --format '%Y' "$FPATH_PIMP_LIST")"
+
+	item-sound select
+
+	find -L -type f -printf '%P\n' | sort -r | sed '/^$/d' | fzf -i -s -m -e \
+		--header='PiMP (⌐■_■)' \
+		--header-first \
+		--border=rounded \
+		--color=fg+:0,bg+:10,hl:9,hl+:1,border:10,gutter:0,header:10,prompt:7,info:10 \
+		--prompt '> ' \
+		--algo=v1 \
+		--literal \
+		--cycle \
+		--tac \
+		--no-mouse \
+		--header-lines=0 \
+		--layout=reverse \
+		--bind 'enter:select-all+accept+execute(rm -f "$FPATH_PIMP_LIST")' \
+		--bind 'change:first' \
+		--bind 'backward-eof:execute-silent(printf clear | espeak -a 250 -s 300)' \
+		--bind 'home:first' \
+		--bind 'end:last' \
+		--bind 'insert:abort' \
+		--bind 'alt-q:abort' \
+		--bind 'ctrl-q:abort' \
+		--bind 'tab:abort' | \
+	while read f
+	do
+		printf '%s/%s\n' "$DPATH_MUSIC" "$f" >> "$FPATH_PIMP_LIST"
+		continue
+	done
+
+	modtime_pimp_list_post="$(stat --format '%Y' "$FPATH_PIMP_LIST")"
+
+	if [ "$modtime_pimp_list_post" != "$modtime_pimp_list_pre" ]
+	then
+		pimp play
+	fi
+}
+
+if ! check-prerequisites
+then
+	exit 1
+fi
+
+case "$1" in
+	dirs|-d)
+		pushd "$DPATH_MUSIC" > /dev/null 2>&1
+		clear
+
+		list-dirs
+		popd > /dev/null 2>&1
+		exit
+		;;
+	
+	filter|--prepare-the-stereo|-f)
+		pushd "$DPATH_MUSIC" > /dev/null 2>&1
+		clear
+
+		list-filter
+		popd > /dev/null 2>&1
+		exit
+		;;
+
+	play|slap|--slap|-p)
+		item-play "$2"
+		exit $?
+		;;
+
+	play-sound)
+		item-sound "$2"
+		exit 
+		;;
+	
+	*)
+		pushd "$DPATH_MUSIC" > /dev/null 2>&1
+		clear
+
+		if [ -f "$FPATH_PIMP_LIST" ]
+		then
+			item-play
+		fi
+
+		list-dirs
+		popd > /dev/null 2>&1
+		exit
+		;;
+esac
