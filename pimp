@@ -11,12 +11,25 @@ clear()
 
 check-prerequisites()
 {
-	programs=(espeak ffmpeg mpv)
+	programs=(espeak ffplay mpv)
+	result=0
 
 	for i in "${programs[@]}"
 	do
-		which "$i" > /dev/null 2>&1 || return 1
+		if ! which "$i" > /dev/null 2>&1
+		then
+			result=1
+			printf 'pimp: prerequisite "%s" not found\n' "$i" >&2
+		fi
 	done
+
+	if ! [ -d "$DPATH_MUSIC" ]
+	then
+		result=1
+		printf 'pimp: music directory not found: %s\n' "$DPATH_MUSIC" >&2
+	fi
+
+	return "$result"
 }
 
 create-list()
@@ -58,7 +71,7 @@ item-play()
 			--playlist="$FPATH_PIMP_LIST" \
 			"$@"
 	else
-		printf 'PiMP: cannot find %s\n' "$FPATH_PIMP_LIST" >&2
+		printf 'pimp: cannot find %s\n' "$FPATH_PIMP_LIST" >&2
 		return 1
 	fi
 }
@@ -69,32 +82,14 @@ item-sound()
 		select)
 			ffplay -f lavfi -i 'sine=frequency=2000:duration=0.025' \
 				-autoexit -nodisp > /dev/null 2>&1
-#			mpv \
-#				--really-quiet \
-#				--loop-file=no \
-#				--no-load-scripts \
-#				--volume=150 \
-#				"$DPATH_PIMP/usr/share/select.opus"
 			;;
 		play)
 			ffplay -f lavfi -i 'sine=frequency=1000:duration=0.025' \
 				-autoexit -nodisp > /dev/null 2>&1
-#			mpv \
-#				--really-quiet \
-#				--loop-file=no \
-#				--no-load-scripts \
-#				--volume=150 \
-#				"$DPATH_PIMP/usr/share/play.opus"
 			;;
 		*)
 			ffplay -f lavfi -i 'sine=frequency=2000:duration=0.025' \
 				-autoexit -nodisp > /dev/null 2>&1
-#			mpv \
-#				--really-quiet \
-#				--loop-file=no \
-#				--no-load-scripts \
-#				--volume=150 \
-#				"$DPATH_PIMP/usr/share/select.opus"
 			;;
 	esac
 }
