@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#${FPATH_PIMP_LIST:="$HOME/.cache/pimp.list"}
-#${DPATH_MUSIC:="$HOME/Music"}
-#ffmpeg v4.0, espeak v1.48.15, mpv v0.33.0
+export DPATH_MUSIC="${DPATH_MUSIC-"$HOME/Music"}"
+export DPATH_PIMP="$(dirname "$0")"
+export FPATH_PIMP_PLAYLIST="${FPATH_PIMP_PLAYLIST-"$HOME/.cache/pimp.list"}"
 
 clear()
 {
@@ -34,10 +34,10 @@ check-prerequisites()
 
 create-list()
 {
-	if [ -d "$@" ]
+	if [ -d "$*" ]
 	then
-		dpath_full="$(realpath "$@")"
-		find -L "$dpath_full" -type f | sort > "$FPATH_PIMP_LIST"
+		dpath_full="$(realpath "$*")"
+		find -L "$dpath_full" -type f | sort > "$FPATH_PIMP_PLAYLIST"
 	fi
 }
 
@@ -52,7 +52,7 @@ item-play()
 		break
 	done
 
-	if [ -f "$FPATH_PIMP_LIST" ]
+	if [ -f "$FPATH_PIMP_PLAYLIST" ]
 	then
 		clear
 		printf 'PiMP: Initiating the slap... (⌐■_■)\n\n'
@@ -68,10 +68,10 @@ item-play()
 			--display-tags= \
 			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
 			--config-dir="$DPATH_PIMP/etc/mpv" \
-			--playlist="$FPATH_PIMP_LIST" \
+			--playlist="$FPATH_PIMP_PLAYLIST" \
 			"$@"
 	else
-		printf 'pimp: cannot find %s\n' "$FPATH_PIMP_LIST" >&2
+		printf 'pimp: cannot find %s\n' "$FPATH_PIMP_PLAYLIST" >&2
 		return 1
 	fi
 }
@@ -96,7 +96,7 @@ item-sound()
 
 list-dirs()
 {
-	find -L -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | fzf -i -s -m -e \
+	find -L . -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | fzf -i -s -m -e \
 		--header='PiMP (⌐■_■)' \
 		--header-first \
 		--border=rounded \
@@ -125,11 +125,11 @@ list-dirs()
 
 list-filter()
 {
-	modtime_pimp_list_pre="$(stat --format '%Y' "$FPATH_PIMP_LIST")"
+	modtime_pimp_list_pre="$(stat --format '%Y' "$FPATH_PIMP_PLAYLIST")"
 
 	item-sound select
 
-	find -L -type f -printf '%P\n' | sort -r | sed '/^$/d' | fzf -i -s -m -e \
+	find -L . -type f -printf '%P\n' | sort -r | sed '/^$/d' | fzf -i -s -m -e \
 		--header='PiMP (⌐■_■)' \
 		--header-first \
 		--border=rounded \
@@ -142,7 +142,7 @@ list-filter()
 		--no-mouse \
 		--header-lines=0 \
 		--layout=reverse \
-		--bind 'enter:select-all+accept+execute(rm -f "$FPATH_PIMP_LIST")' \
+		--bind 'enter:select-all+accept+execute(rm -f "$FPATH_PIMP_PLAYLIST")' \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(printf clear | espeak -a 250 -s 300)' \
 		--bind 'home:first' \
@@ -151,13 +151,13 @@ list-filter()
 		--bind 'alt-q:abort' \
 		--bind 'ctrl-q:abort' \
 		--bind 'tab:abort' | \
-	while read f
+	while read -r f
 	do
-		printf '%s/%s\n' "$DPATH_MUSIC" "$f" >> "$FPATH_PIMP_LIST"
+		printf '%s/%s\n' "$DPATH_MUSIC" "$f" >> "$FPATH_PIMP_PLAYLIST"
 		continue
 	done
 
-	modtime_pimp_list_post="$(stat --format '%Y' "$FPATH_PIMP_LIST")"
+	modtime_pimp_list_post="$(stat --format '%Y' "$FPATH_PIMP_PLAYLIST")"
 
 	if [ "$modtime_pimp_list_post" != "$modtime_pimp_list_pre" ]
 	then
@@ -203,7 +203,7 @@ case "$1" in
 		pushd "$DPATH_MUSIC" > /dev/null 2>&1
 		clear
 
-		if [ -f "$FPATH_PIMP_LIST" ]
+		if [ -f "$FPATH_PIMP_PLAYLIST" ]
 		then
 			item-play
 		fi
