@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export DPATH_MUSIC="${DPATH_MUSIC-"$HOME/Music"}"
-export FPATH_PIMP_PLAYLIST="${FPATH_PIMP_PLAYLIST-"$HOME/.cache/pimp.list"}"
+export FPATH_PIMP_PLAYLIST="${FPATH_PIMP_PLAYLIST-"$HOME/.cache/pimp.playlist"}"
 
 clear()
 {
@@ -162,6 +162,11 @@ list-filter()
 		item-play
 	fi
 }
+
+if ! [ -d "$(dirname "$FPATH_PIMP_PLAYLIST")" ]
+then
+	mkdir "$(dirname "$FPATH_PIMP_PLAYLIST")"
+fi
 
 if ! check-prerequisites
 then
