@@ -1,7 +1,6 @@
 #!/bin/bash
 
 export DPATH_MUSIC="${DPATH_MUSIC-"$HOME/Music"}"
-export DPATH_PIMP="$(dirname "$0")"
 export FPATH_PIMP_PLAYLIST="${FPATH_PIMP_PLAYLIST-"$HOME/.cache/pimp.list"}"
 
 clear()
@@ -67,7 +66,6 @@ item-play()
 			--loop-file=no \
 			--display-tags= \
 			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
-			--config-dir="$DPATH_PIMP/etc/mpv" \
 			--playlist="$FPATH_PIMP_PLAYLIST" \
 			"$@"
 	else
