@@ -33,6 +33,9 @@ check_prerequisites()
 
 create_list()
 {
+	# description: generates recursive file list of specified directory
+	#              and saves output as playlist file.
+	
 	if [ -d "$*" ]
 	then
 		dpath_full="$(realpath "$*")"
@@ -42,6 +45,8 @@ create_list()
 
 item_play()
 {
+	# description: plays playlist file.
+
 	pkill espeak
 	pkill ffplay
 
@@ -84,6 +89,9 @@ item_play()
 
 item_sound()
 {
+	# description: produces sound effects for auditory guidance /
+	#              navigation.
+
 	case "$@" in
 		select)
 			ffplay -f lavfi -i 'sine=frequency=2000:duration=0.025' \
@@ -192,15 +200,11 @@ case "$1" in
 		;;
 
 	play|slap|-p)
-		# usage: item_play [directory]
-		
 		item_play "$2"
 		exit $?
 		;;
 
 	play-sound)
-		# usage: item_sound [play|select]
-
 		item_sound "$2" 
 		exit 
 		;;
