@@ -1,19 +1,19 @@
-#!/bin/bash
+#!/bin/sh
 
-export DPATH_MUSIC="${DPATH_MUSIC-"$HOME/Music"}"
-export FPATH_PIMP_PLAYLIST="${FPATH_PIMP_PLAYLIST-"$HOME/.cache/pimp.playlist"}"
+DPATH_MUSIC="${DPATH_MUSIC-"$HOME/Music"}"
+DPATH_PIMP_MPV_CFG="$(dirname "$(realpath "$0")")/etc/mpv"
+FPATH_PIMP_PLAYLIST="${FPATH_PIMP_PLAYLIST-"$HOME/.cache/pimp.playlist"}"
 
-clear()
+export DPATH_MUSIC
+export FPATH_PIMP_PLAYLIST
+
+check_prerequisites()
 {
-	echo -ne '\033c'
-}
-
-check-prerequisites()
-{
-	programs=(espeak ffplay mpv)
+	software='espeak ffplay mpv'
 	result=0
 
-	for i in "${programs[@]}"
+	printf '%s' "$software" | sed 's/$/\n/g' | sed 's/ /\n/g' | \
+	while read -r i
 	do
 		if ! which "$i" > /dev/null 2>&1
 		then
@@ -31,7 +31,7 @@ check-prerequisites()
 	return "$result"
 }
 
-create-list()
+create_list()
 {
 	if [ -d "$*" ]
 	then
@@ -40,23 +40,31 @@ create-list()
 	fi
 }
 
-item-play()
+item_play()
 {
 	pkill espeak
 	pkill ffplay
 
 	for i in "$@"
 	do
-		create-list "$i"
+		create_list "$i"
 		break
 	done
 
 	if [ -f "$FPATH_PIMP_PLAYLIST" ]
 	then
 		clear
-		printf 'PiMP: Initiating the slap... (⌐■_■)\n\n'
+		printf 'PiMP: initiating the slap... (⌐■_■)\n\n'
 
-		item-sound play
+		if [ -d "$DPATH_PIMP_MPV_CFG" ]
+		then
+			# warning: does not like whitespaces in path
+			mpv_arg_cfgdir="--config-dir=\"$DPATH_PIMP_MPV_CFG\""
+		else
+			mpv_arg_cfgdir=""
+		fi
+
+		item_sound play
 
 		mpv \
 			--shuffle \
@@ -66,7 +74,7 @@ item-play()
 			--loop-file=no \
 			--display-tags= \
 			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
-			--playlist="$FPATH_PIMP_PLAYLIST" \
+			--playlist="$FPATH_PIMP_PLAYLIST" "$mpv_arg_cfgdir" \
 			"$@"
 	else
 		printf 'pimp: cannot find %s\n' "$FPATH_PIMP_PLAYLIST" >&2
@@ -74,7 +82,7 @@ item-play()
 	fi
 }
 
-item-sound()
+item_sound()
 {
 	case "$@" in
 		select)
@@ -92,9 +100,10 @@ item-sound()
 	esac
 }
 
-list-dirs()
+list_dirs()
 {
-	find -L . -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | fzf -i -s -m -e \
+	clear
+	find -L "$DPATH_MUSIC" -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | fzf -i -s -m -e \
 		--header='PiMP (⌐■_■)' \
 		--header-first \
 		--border=rounded \
@@ -121,13 +130,14 @@ list-dirs()
 		--bind 'tab:abort'
 }
 
-list-filter()
+list_filter()
 {
 	modtime_pimp_list_pre="$(stat --format '%Y' "$FPATH_PIMP_PLAYLIST")"
 
-	item-sound select
+	item_sound select
 
-	find -L . -type f -printf '%P\n' | sort -r | sed '/^$/d' | fzf -i -s -m -e \
+	clear
+	find -L "$DPATH_MUSIC" -type f -printf '%P\n' | sort -r | sed '/^$/d' | fzf -i -s -m -e \
 		--header='PiMP (⌐■_■)' \
 		--header-first \
 		--border=rounded \
@@ -159,60 +169,49 @@ list-filter()
 
 	if [ "$modtime_pimp_list_post" != "$modtime_pimp_list_pre" ]
 	then
-		item-play
+		item_play
 	fi
 }
 
-if ! [ -d "$(dirname "$FPATH_PIMP_PLAYLIST")" ]
-then
-	mkdir "$(dirname "$FPATH_PIMP_PLAYLIST")"
-fi
+mkdir "$(dirname "$FPATH_PIMP_PLAYLIST")" > /dev/null 2>&1
 
-if ! check-prerequisites
+if ! check_prerequisites
 then
 	exit 1
 fi
 
 case "$1" in
 	dirs|-d)
-		pushd "$DPATH_MUSIC" > /dev/null 2>&1
-		clear
-
-		list-dirs
-		popd > /dev/null 2>&1
+		list_dirs
 		exit
 		;;
 	
-	filter|--prepare-the-stereo|-f)
-		pushd "$DPATH_MUSIC" > /dev/null 2>&1
-		clear
-
-		list-filter
-		popd > /dev/null 2>&1
+	filter|-f)
+		list_filter
 		exit
 		;;
 
-	play|slap|--slap|-p)
-		item-play "$2"
+	play|slap|-p)
+		# usage: item_play [directory]
+		
+		item_play "$2"
 		exit $?
 		;;
 
 	play-sound)
-		item-sound "$2"
+		# usage: item_sound [play|select]
+
+		item_sound "$2" 
 		exit 
 		;;
 	
 	*)
-		pushd "$DPATH_MUSIC" > /dev/null 2>&1
-		clear
-
 		if [ -f "$FPATH_PIMP_PLAYLIST" ]
 		then
-			item-play
+			item_play
 		fi
 
-		list-dirs
-		popd > /dev/null 2>&1
+		list_dirs
 		exit
 		;;
 esac
