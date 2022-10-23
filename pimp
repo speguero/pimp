@@ -35,10 +35,11 @@ create_list()
 {
 	# description: generates recursive file list of specified directory
 	#              and saves output as playlist file.
-	
-	if [ -d "$*" ]
+
+	if [ -d "$DPATH_MUSIC/$*" ]
 	then
-		dpath_full="$(realpath "$*")"
+		dpath_full="$(realpath "$DPATH_MUSIC/$*")"
+
 		find -L "$dpath_full" -type f | sort > "$FPATH_PIMP_PLAYLIST"
 	fi
 }
@@ -126,7 +127,7 @@ list_dirs()
 		--layout=reverse \
 		--preview '(printf "%s" {} | sed "s/\//, /g" | espeak -a 250 -s 300 && ffplay -f lavfi -i "sine=frequency=2000:duration=0.025" -nodisp -autoexit)' \
 		--preview-window 0% \
-		--bind "enter:execute(pimp play {} && pimp play-sound select)" \
+		--bind "enter:execute(pimp play {})" \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(printf clear | espeak -a 250 -s 300)' \
 		--bind 'bspace:clear-query' \
