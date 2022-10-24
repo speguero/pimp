@@ -1,5 +1,15 @@
 #!/bin/sh
 
+<<0
+        ::::::::: :::::::::::   :::   :::   :::::::::
+       :+:    :+:    :+:      :+:+: :+:+:  :+:    :+:
+      +:+    +:+    +:+     +:+ +:+:+ +:+ +:+    +:+
+     +#++:++#+     +#+     +#+  +:+  +#+ +#++:++#+
+    +#+           +#+     +#+       +#+ +#+
+   #+#           #+#     #+#       #+# #+#
+  ###       ########### ###       ### ###
+0
+
 DPATH_MUSIC="${DPATH_MUSIC-"$HOME/Music"}"
 FPATH_PLAYLIST="${FPATH_PLAYLIST-"$HOME/.cache/pimp.playlist"}"
 
@@ -59,7 +69,7 @@ item_play()
 	if [ -f "$FPATH_PLAYLIST" ]
 	then
 		clear
-		printf 'PiMP: initiating the slap... (⌐■_■)\n\n'
+		printf 'pimp: initiating the slap... (⌐■_■)\n\n'
 
 		item_sound play
 
@@ -103,8 +113,10 @@ item_sound()
 list_dirs()
 {
 	clear
-	find -L "$DPATH_MUSIC" -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | fzf -i -s -m -e \
-		--header='PiMP (⌐■_■)' \
+
+	find -L "$DPATH_MUSIC" -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | \
+	fzf -i -s -m -e \
+		--header='pimp' \
 		--header-first \
 		--border=rounded \
 		--color=fg:7,bg:0,fg+:0,bg+:10,hl:9,hl+:1,border:10,gutter:0,header:10,prompt:7,info:10 \
@@ -134,11 +146,12 @@ list_filter()
 {
 	modtime_pimp_list_pre="$(stat --format '%Y' "$FPATH_PLAYLIST")"
 
+	clear
 	item_sound select
 
-	clear
-	find -L "$DPATH_MUSIC" -type f -printf '%P\n' | sort -r | sed '/^$/d' | fzf -i -s -m -e \
-		--header='PiMP (⌐■_■)' \
+	find -L "$DPATH_MUSIC" -type f -printf '%P\n' | sort -r | sed '/^$/d' | \
+	fzf -i -s -m -e \
+		--header='pimp' \
 		--header-first \
 		--border=rounded \
 		--color=fg+:0,bg+:10,hl:9,hl+:1,border:10,gutter:0,header:10,prompt:7,info:10 \
