@@ -12,32 +12,26 @@
 
 DPATH_MUSIC="${DPATH_MUSIC-"$HOME/Music"}"
 FPATH_PLAYLIST="${FPATH_PLAYLIST-"$HOME/.cache/pimp.playlist"}"
+prereq="pimp espeak ffplay mpv"
 
 export DPATH_MUSIC
 export FPATH_PLAYLIST
 
-check_prerequisites()
+check_prereq()
 {
-	software='espeak ffplay mpv'
-	result=0
+	local result=0
 
-	printf '%s' "$software" | sed 's/$/\n/g' | sed 's/ /\n/g' | \
+	printf '%s' "$*" | sed 's/$/\n/g' | sed 's/ /\n/g' | \
 	while read -r i
 	do
-		if ! command -v "$i" > /dev/null 2>&1
+		if ! command -v "${i}" > /dev/null 2>&1
 		then
 			result=1
-			printf 'pimp: prerequisite "%s" not found\n' "$i" >&2
+			printf 'pimp: prerequisite "%s" not found\n' "${i}" >&2
 		fi
 	done
 
-	if ! [ -d "$DPATH_MUSIC" ]
-	then
-		result=1
-		printf 'pimp: music directory not found: %s\n' "$DPATH_MUSIC" >&2
-	fi
-
-	return "$result"
+	return "${result}"
 }
 
 create_list()
@@ -45,11 +39,12 @@ create_list()
 	# description: generates recursive file list of specified directory
 	#              and saves output as playlist file.
 
-	if [ -d "$DPATH_MUSIC/$*" ]
-	then
-		dpath_full="$(realpath "$DPATH_MUSIC/$*")"
+	mkdir "$(dirname "${FPATH_PLAYLIST}")" > /dev/null 2>&1
 
-		find -L "$dpath_full" -type f | sort > "$FPATH_PLAYLIST"
+	if [ -d "${DPATH_MUSIC}/$*" ]
+	then
+		local dpath_full="$(realpath "${DPATH_MUSIC}/$*")"
+		find -L "${dpath_full}" -type f | sort > "${FPATH_PLAYLIST}"
 	fi
 }
 
@@ -60,13 +55,16 @@ item_play()
 	pkill espeak
 	pkill ffplay
 
-	for i in "$@"
-	do
-		create_list "$i"
-		break
-	done
+	if ! [ -z "$*" ]
+	then
+		for i in "$*"
+		do
+			create_list "${i}"
+			break
+		done
+	fi
 
-	if [ -f "$FPATH_PLAYLIST" ]
+	if [ -f "${FPATH_PLAYLIST}" ]
 	then
 		clear
 		printf 'pimp: initiating the slap... (⌐■_■)\n\n'
@@ -81,10 +79,10 @@ item_play()
 			--loop-file=no \
 			--display-tags= \
 			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
-			--playlist="$FPATH_PLAYLIST" \
+			--playlist="${FPATH_PLAYLIST}" \
 			"$@"
 	else
-		printf 'pimp: cannot find %s\n' "$FPATH_PLAYLIST" >&2
+		printf 'pimp: cannot find %s\n' "${FPATH_PLAYLIST}" >&2
 		return 1
 	fi
 }
@@ -114,7 +112,7 @@ list_dirs()
 {
 	clear
 
-	find -L "$DPATH_MUSIC" -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | \
+	find -L "${DPATH_MUSIC}" -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | \
 	fzf -i -s -m -e \
 		--header='pimp' \
 		--header-first \
@@ -144,12 +142,12 @@ list_dirs()
 
 list_filter()
 {
-	modtime_pimp_list_pre="$(stat --format '%Y' "$FPATH_PLAYLIST")"
+	modtime_pimp_list_pre="$(stat --format '%Y' "${FPATH_PLAYLIST}")"
 
 	clear
 	item_sound select
 
-	find -L "$DPATH_MUSIC" -type f -printf '%P\n' | sort -r | sed '/^$/d' | \
+	find -L "${DPATH_MUSIC}" -type f -printf '%P\n' | sort -r | sed '/^$/d' | \
 	fzf -i -s -m -e \
 		--header='pimp' \
 		--header-first \
@@ -163,7 +161,7 @@ list_filter()
 		--no-mouse \
 		--header-lines=0 \
 		--layout=reverse \
-		--bind 'enter:select-all+accept+execute(rm -f "$FPATH_PLAYLIST")' \
+		--bind 'enter:select-all+accept+execute(rm -f "${FPATH_PLAYLIST}")' \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(printf clear | espeak -a 250 -s 300)' \
 		--bind 'home:first' \
@@ -174,22 +172,26 @@ list_filter()
 		--bind 'tab:abort' | \
 	while read -r f
 	do
-		printf '%s/%s\n' "$DPATH_MUSIC" "$f" >> "$FPATH_PLAYLIST"
+		printf '%s/%s\n' "${DPATH_MUSIC}" "$f" >> "${FPATH_PLAYLIST}"
 		continue
 	done
 
-	modtime_pimp_list_post="$(stat --format '%Y' "$FPATH_PLAYLIST")"
+	modtime_pimp_list_post="$(stat --format '%Y' "${FPATH_PLAYLIST}")"
 
-	if [ "$modtime_pimp_list_post" != "$modtime_pimp_list_pre" ]
+	if [ "${modtime_pimp_list_post}" != "${modtime_pimp_list_pre}" ]
 	then
 		item_play
 	fi
 }
 
-mkdir "$(dirname "$FPATH_PLAYLIST")" > /dev/null 2>&1
-
-if ! check_prerequisites
+if ! check_prereq "${prereq}"
 then
+	exit 1
+fi
+
+if ! [ -d "${DPATH_MUSIC}" ]
+then
+	printf 'pimp: music directory not found: %s\n' "${DPATH_MUSIC}" >&2
 	exit 1
 fi
 
@@ -210,12 +212,12 @@ case "$1" in
 		;;
 
 	play-sound)
-		item_sound "$2" 
+		item_sound "$2"
 		exit 
 		;;
 	
 	*)
-		if [ -f "$FPATH_PLAYLIST" ]
+		if [ -f "${FPATH_PLAYLIST}" ]
 		then
 			item_play
 		fi
