@@ -15,7 +15,7 @@ check_prerequisites()
 	printf '%s' "$software" | sed 's/$/\n/g' | sed 's/ /\n/g' | \
 	while read -r i
 	do
-		if ! which "$i" > /dev/null 2>&1
+		if ! command -v "$i" > /dev/null 2>&1
 		then
 			result=1
 			printf 'pimp: prerequisite "%s" not found\n' "$i" >&2
@@ -48,8 +48,8 @@ item_play()
 {
 	# description: plays playlist file.
 
-	pkill espeak
-	pkill ffplay
+	command -v espeak
+	command -v ffplay
 
 	for i in "$@"
 	do
