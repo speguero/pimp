@@ -1,7 +1,6 @@
 #!/bin/sh
 
 DPATH_MUSIC="${DPATH_MUSIC-"$HOME/Music"}"
-DPATH_PIMP_MPV_CFG="$(dirname "$(realpath "$0")")/etc/mpv"
 FPATH_PLAYLIST="${FPATH_PLAYLIST-"$HOME/.cache/pimp.playlist"}"
 
 export DPATH_MUSIC
@@ -62,14 +61,6 @@ item_play()
 		clear
 		printf 'PiMP: initiating the slap... (⌐■_■)\n\n'
 
-		if [ -d "$DPATH_PIMP_MPV_CFG" ]
-		then
-			# warning: does not like whitespaces in path
-			mpv_arg_cfgdir="--config-dir=\"$DPATH_PIMP_MPV_CFG\""
-		else
-			mpv_arg_cfgdir=""
-		fi
-
 		item_sound play
 
 		mpv \
@@ -80,7 +71,7 @@ item_play()
 			--loop-file=no \
 			--display-tags= \
 			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
-			--playlist="$FPATH_PLAYLIST" "$mpv_arg_cfgdir" \
+			--playlist="$FPATH_PLAYLIST" \
 			"$@"
 	else
 		printf 'pimp: cannot find %s\n' "$FPATH_PLAYLIST" >&2
