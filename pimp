@@ -8,6 +8,9 @@
     +#+           +#+     +#+       +#+ +#+
    #+#           #+#     #+#       #+# #+#
   ###       ########### ###       ### ###
+
+                            raspberry pi music player
+                                      -- -     -
 0
 
 DPATH_MUSIC="${DPATH_MUSIC-"$HOME/Music"}"
