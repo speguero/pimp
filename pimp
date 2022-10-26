@@ -75,14 +75,15 @@ item_play()
 		item_sound play
 
 		mpv \
-			--shuffle \
+			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
+			--display-tags= \
+			--loop-file=no \
+			--loop-playlist=inf \
 			--no-audio-display \
 			--no-video \
-			--loop-playlist=inf \
-			--loop-file=no \
-			--display-tags= \
-			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
 			--playlist="${FPATH_PLAYLIST}" \
+			--save-position-on-quit \
+			--shuffle \
 			"$@"
 	else
 		printf 'pimp: cannot find %s\n' "${FPATH_PLAYLIST}" >&2
