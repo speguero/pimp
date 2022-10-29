@@ -75,7 +75,7 @@ item_play()
 	if [ -f "${PIMP_FPATH_PLAYLIST}" ]
 	then
 		clear
-		printf 'pimp: initiating the slap... (⌐■_■)\n\n'
+		printf 'pimp: initiating the slap... (⌐■_■)\n'
 
 		if ! [ -d "${PIMP_DPATH_MPV_WL}" ]
 		then
@@ -133,21 +133,21 @@ list_dirs()
 
 	find -L "${PIMP_DPATH_MUSIC}" -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | \
 	fzf -i -s -m -e \
-		--header='pimp' \
+		--header='pimp (dir)' \
 		--header-first \
 		--border=rounded \
-		--color=fg:7,bg:0,fg+:0,bg+:10,hl:9,hl+:1,border:10,gutter:0,header:10,prompt:7,info:10 \
+		--color=fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:1,header:11,prompt:7,info:8,query:15 \
 		--prompt '> ' \
 		--algo=v1 \
+		--query="$*" \
 		--literal \
 		--cycle \
 		--tac \
-		--no-mouse \
-		--header-lines=0 \
 		--layout=reverse \
 		--preview '(printf "%s" {} | sed "s/\//, /g" | espeak -a 250 -s 300 && pimp play-sound select)' \
 		--preview-window 0% \
 		--bind "enter:execute(pimp play {}; pimp play-sound select)" \
+		--bind "double-click:execute(pimp play {}; pimp play-sound select)" \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(printf clear | espeak -a 250 -s 300)' \
 		--bind 'bspace:clear-query' \
@@ -158,20 +158,20 @@ list_dirs()
 		--bind 'ctrl-q:abort' \
 		--bind 'f5:execute(pimp filter)' \
 		--bind 'f6:execute(pimp play)' \
-		--bind 'f7:execute(pimp dirs)+abort' \
+		--bind 'f7:execute(pimp dir)+abort' \
 		--bind 'tab:abort'
 }
 
 list_filter()
 {
 	#  descriptions:
-	#
+	#  
 	#  var int_modtime_plist_*gen
 	#  --------------------------
 	#  retreives modified epoch timestamp of $PIMP_FPATH_PLAYLIST before
 	#  and after `fzf` invocation, to determine whether the content of
 	#  said file was updated upon termination of said program.
-	#
+	#  
 	#  var str_skip_plist_gen
 	#  ----------------------
 	#  generates random string; used as output to facilitate a user's
@@ -181,7 +181,7 @@ list_filter()
 	#  cannot use `fzf --bind` for such a purpose due to loop processing
 	#  of `fzf` output below. a conditional statement detecting a match
 	#  between `fzf` output and this var serves as a workaround.
-	#
+	#  
 	#  var i
 	#  -----
 	#  avoids unnecessary processing of `grep` upon the first loop.
@@ -195,21 +195,22 @@ list_filter()
 
 	find -L "${PIMP_DPATH_MUSIC}" -type f -printf '%P\n' | sort -r | sed '/^$/d' | \
 	fzf -i -s -m -e \
-		--header='pimp' \
+		--header='pimp (filter)' \
 		--header-first \
 		--border=rounded \
-		--color=fg+:0,bg+:10,hl:9,hl+:1,border:10,gutter:0,header:10,prompt:7,info:10 \
+		--color=fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:12,header:11,prompt:7,info:8,query:15 \
 		--prompt '> ' \
 		--algo=v1 \
+		--query="$*" \
 		--literal \
 		--cycle \
 		--tac \
-		--no-mouse \
 		--header-lines=0 \
 		--layout=reverse \
-		--bind 'enter:select-all+accept+execute(rm -f "${PIMP_FPATH_PLAYLIST}")' \
+		--bind 'enter:select-all+accept' \
+		--bind 'double-click:select-all+accept' \
 		--bind 'change:first' \
-		--bind 'backward-eof:execute-silent(printf clear | espeak -a 250 -s 300)' \
+		--bind 'backward-eof:execute-silent(pimp play-sound play)' \
 		--bind 'home:first' \
 		--bind 'end:last' \
 		--bind 'insert:abort' \
@@ -222,6 +223,8 @@ list_filter()
 	do
 		if [ "${i}" == 0 ]
 		then
+			rm -f "${PIMP_FPATH_PLAYLIST}"
+
 			if printf '%s' "${f}" | grep -q "${str_skip_plist_gen}"
 			then
 				item_play
@@ -254,17 +257,17 @@ then
 fi
 
 case "$1" in
-	dirs|-d)
-		list_dirs
+	dir|d)
+		list_dirs "$2"
 		exit
 		;;
 	
-	filter|-f)
-		list_filter
+	filter|f)
+		list_filter "$2"
 		exit
 		;;
 
-	play|slap|-p)
+	play|slap|p)
 		item_play "$2"
 		exit $?
 		;;
