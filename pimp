@@ -224,13 +224,16 @@ list_filter()
 	do
 		if [ "${i}" == 0 ]
 		then
-			rm -f "${PIMP_FPATH_PLAYLIST}"
-
 			if printf '%s' "${f}" | grep -q "${str_skip_plist_gen}"
 			then
 				item_play
 				exit $?
 			fi
+		fi
+
+		if [ "${i}" == 0 ]
+		then
+			rm -f "${PIMP_FPATH_PLAYLIST}"
 		fi
 
 		printf '%s/%s\n' "${PIMP_DPATH_MUSIC}" "${f}" >> "${PIMP_FPATH_PLAYLIST}"
