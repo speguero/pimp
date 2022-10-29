@@ -144,6 +144,10 @@ list_dirs()
 		--layout=reverse \
 		--preview '(printf "%s" {} | sed "s/\//, /g" | espeak -a 250 -s 300 && pimp play-sound select)' \
 		--preview-window 0% \
+		--bind 'tab:abort' \
+		--bind 'insert:abort' \
+		--bind 'alt-q:abort' \
+		--bind 'ctrl-q:abort' \
 		--bind "enter:execute(pimp play {}; pimp play-sound select)" \
 		--bind "double-click:execute(pimp play {}; pimp play-sound select)" \
 		--bind 'change:first' \
@@ -151,9 +155,6 @@ list_dirs()
 		--bind 'bspace:clear-query' \
 		--bind 'home:first' \
 		--bind 'end:last' \
-		--bind 'insert:abort' \
-		--bind 'alt-q:abort' \
-		--bind 'ctrl-q:abort' \
 		--bind 'f5:execute(pimp filter)' \
 		--bind 'f6:execute(pimp play; pimp play-sound select)' \
 		--bind 'f7:execute(pimp dir)+abort' \
@@ -186,7 +187,9 @@ list_filter()
 	#  avoids unnecessary processing of `grep` upon the first loop.
 
 	local int_modtime_plist_pregen="$(stat --format '%Y' "${PIMP_FPATH_PLAYLIST}")"
-	local str_skip_plist_gen="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 50 | head -n 1)"
+	local int_pimp_quit="$(cat /dev/random | tr -dc '0-9' | fold -w 2 | head -n 1)"
+	local int_pimp_refresh="$(cat /dev/random | tr -dc '0-9' | fold -w 2 | head -n 1)"
+	local str_skip_plist_gen="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 10 | head -n 1)"
 	local i=0
 
 	clear
@@ -206,28 +209,39 @@ list_filter()
 		--tac \
 		--header-lines=0 \
 		--layout=reverse \
+		--bind "esc:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
+		--bind "tab:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
+		--bind "insert:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
+		--bind "alt-q:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
+		--bind "ctrl-q:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
+		--bind "f5:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
 		--bind 'enter:select-all+accept' \
 		--bind 'double-click:select-all+accept' \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(pimp play-sound play)' \
 		--bind 'home:first' \
 		--bind 'end:last' \
-		--bind 'insert:abort' \
-		--bind 'alt-q:abort' \
-		--bind 'ctrl-q:abort' \
-		--bind 'f5:abort' \
 		--bind "f6:execute(printf '%s\n' "${str_skip_plist_gen}")+abort" \
-		--bind 'f7:execute(pimp filter)+abort' \
-		--bind 'f8:execute(/bin/sh -uc "rm -f "${PIMP_DPATH_MPV_WL}"/*")' \
-		--bind 'tab:abort' | \
+		--bind "f7:execute(printf '%s\n' "${int_pimp_refresh}")+abort" \
+		--bind 'f8:execute(/bin/sh -uc "rm -f "${PIMP_DPATH_MPV_WL}"/*")' | \
 	while read -r f
 	do
 		if [ "${i}" == 0 ]
 		then
+			if printf '%s' "${f}" | grep -q "${int_pimp_quit}"
+			then
+				exit "$int_pimp_quit"
+			fi
+
+			if printf '%s' "${f}" | grep -q "${int_pimp_refresh}"
+			then
+				exit "$int_pimp_refresh"
+			fi
+
 			if printf '%s' "${f}" | grep -q "${str_skip_plist_gen}"
 			then
 				item_play
-				exit $?
+				exit "$int_pimp_quit"
 			fi
 		fi
 
@@ -241,11 +255,25 @@ list_filter()
 		continue
 	done
 
+	int_exit_code="$(echo $?)"
+
+	if [ "${int_exit_code}" == "${int_pimp_quit}" ]
+	then
+		return
+	fi
+
+	if [ "${int_exit_code}" == "${int_pimp_refresh}" ]
+	then
+		list_filter
+		return
+	fi
+	
 	int_modtime_plist_postgen="$(stat --format '%Y' "${PIMP_FPATH_PLAYLIST}")"
 
 	if [ "${int_modtime_plist_postgen}" != "${int_modtime_plist_pregen}" ]
 	then
 		item_play
+		return
 	fi
 }
 
@@ -276,7 +304,7 @@ case "$1" in
 
 	play|slap|p)
 		item_play "${arg}"
-		exit $?
+		exit
 		;;
 
 	play-sound)
