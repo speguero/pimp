@@ -13,12 +13,14 @@
                                       -- -     -
 0
 
-DPATH_MUSIC="${DPATH_MUSIC-"$HOME/Music"}"
-FPATH_PLAYLIST="${FPATH_PLAYLIST-"$HOME/.cache/pimp.playlist"}"
+PIMP_DPATH_MPV_WL="${PIMP_DPATH_MPV_WL-"$HOME/.cache/pimp/mpv_watch_later"}"
+PIMP_DPATH_MUSIC="${PIMP_DPATH_MUSIC-"$HOME/Music"}"
+PIMP_FPATH_PLAYLIST="${PIMP_FPATH_PLAYLIST-"$HOME/.cache/pimp/playlist"}"
 prereq="pimp espeak ffplay mpv"
 
-export DPATH_MUSIC
-export FPATH_PLAYLIST
+export PIMP_DPATH_MPV_WL
+export PIMP_DPATH_MUSIC
+export PIMP_FPATH_PLAYLIST
 
 check_prereq()
 {
@@ -42,12 +44,15 @@ create_list()
 	# description: generates recursive file list of specified directory
 	#              and saves output as playlist file.
 
-	mkdir "$(dirname "${FPATH_PLAYLIST}")" > /dev/null 2>&1
-
-	if [ -d "${DPATH_MUSIC}/$*" ]
+	if ! [ -d "$(dirname "${PIMP_FPATH_PLAYLIST}")" ]
 	then
-		local dpath_full="$(realpath "${DPATH_MUSIC}/$*")"
-		find -L "${dpath_full}" -type f | sort > "${FPATH_PLAYLIST}"
+		mkdir -p "$(dirname "${PIMP_FPATH_PLAYLIST}")" > /dev/null 2>&1
+	fi
+
+	if [ -d "${PIMP_DPATH_MUSIC}/$*" ]
+	then
+		local dpath_full="$(realpath "${PIMP_DPATH_MUSIC}/$*")"
+		find -L "${dpath_full}" -type f | sort > "${PIMP_FPATH_PLAYLIST}"
 	fi
 }
 
@@ -67,26 +72,36 @@ item_play()
 		done
 	fi
 
-	if [ -f "${FPATH_PLAYLIST}" ]
+	if [ -f "${PIMP_FPATH_PLAYLIST}" ]
 	then
 		clear
 		printf 'pimp: initiating the slap... (⌐■_■)\n\n'
 
+		if ! [ -d "${PIMP_DPATH_MPV_WL}" ]
+		then
+			mkdir -p "${PIMP_DPATH_MPV_WL}"
+		fi
+
 		item_sound play
 
 		mpv \
+			--term-title='pimp' \
+			--msg-level=all=error \
+			--term-playing-msg='\nPlaying: ${filename}\n' \
 			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
 			--display-tags= \
 			--loop-file=no \
 			--loop-playlist=inf \
 			--no-audio-display \
 			--no-video \
-			--playlist="${FPATH_PLAYLIST}" \
+			--playlist="${PIMP_FPATH_PLAYLIST}" \
 			--save-position-on-quit \
+			--watch-later-directory="${PIMP_DPATH_MPV_WL}" \
+			--watch-later-options-remove=pause \
 			--shuffle \
 			"$@"
 	else
-		printf 'pimp: cannot find %s\n' "${FPATH_PLAYLIST}" >&2
+		printf 'pimp: cannot find %s\n' "${PIMP_FPATH_PLAYLIST}" >&2
 		return 1
 	fi
 }
@@ -116,7 +131,7 @@ list_dirs()
 {
 	clear
 
-	find -L "${DPATH_MUSIC}" -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | \
+	find -L "${PIMP_DPATH_MUSIC}" -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | \
 	fzf -i -s -m -e \
 		--header='pimp' \
 		--header-first \
@@ -130,9 +145,9 @@ list_dirs()
 		--no-mouse \
 		--header-lines=0 \
 		--layout=reverse \
-		--preview '(printf "%s" {} | sed "s/\//, /g" | espeak -a 250 -s 300 && ffplay -f lavfi -i "sine=frequency=2000:duration=0.025" -nodisp -autoexit)' \
+		--preview '(printf "%s" {} | sed "s/\//, /g" | espeak -a 250 -s 300 && pimp play-sound select)' \
 		--preview-window 0% \
-		--bind "enter:execute(pimp play {})" \
+		--bind "enter:execute(pimp play {}; pimp play-sound select)" \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(printf clear | espeak -a 250 -s 300)' \
 		--bind 'bspace:clear-query' \
@@ -141,17 +156,44 @@ list_dirs()
 		--bind 'insert:abort' \
 		--bind 'alt-q:abort' \
 		--bind 'ctrl-q:abort' \
+		--bind 'f5:execute(pimp filter)' \
+		--bind 'f6:execute(pimp play)' \
+		--bind 'f7:execute(pimp dirs)+abort' \
 		--bind 'tab:abort'
 }
 
 list_filter()
 {
-	modtime_pimp_list_pre="$(stat --format '%Y' "${FPATH_PLAYLIST}")"
+	#  descriptions:
+	#
+	#  var int_modtime_plist_*gen
+	#  --------------------------
+	#  retreives modified epoch timestamp of $PIMP_FPATH_PLAYLIST before
+	#  and after `fzf` invocation, to determine whether the content of
+	#  said file was updated upon termination of said program.
+	#
+	#  var str_skip_plist_gen
+	#  ----------------------
+	#  generates random string; used as output to facilitate a user's
+	#  wish to resume music playback (when using the pimp filter)
+	#  without selecting what music to play.
+	#  
+	#  cannot use `fzf --bind` for such a purpose due to loop processing
+	#  of `fzf` output below. a conditional statement detecting a match
+	#  between `fzf` output and this var serves as a workaround.
+	#
+	#  var i
+	#  -----
+	#  avoids unnecessary processing of `grep` upon the first loop.
+
+	local int_modtime_plist_pregen="$(stat --format '%Y' "${PIMP_FPATH_PLAYLIST}")"
+	local str_skip_plist_gen="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 50 | head -n 1)"
+	local i=0
 
 	clear
 	item_sound select
 
-	find -L "${DPATH_MUSIC}" -type f -printf '%P\n' | sort -r | sed '/^$/d' | \
+	find -L "${PIMP_DPATH_MUSIC}" -type f -printf '%P\n' | sort -r | sed '/^$/d' | \
 	fzf -i -s -m -e \
 		--header='pimp' \
 		--header-first \
@@ -165,7 +207,7 @@ list_filter()
 		--no-mouse \
 		--header-lines=0 \
 		--layout=reverse \
-		--bind 'enter:select-all+accept+execute(rm -f "${FPATH_PLAYLIST}")' \
+		--bind 'enter:select-all+accept+execute(rm -f "${PIMP_FPATH_PLAYLIST}")' \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(printf clear | espeak -a 250 -s 300)' \
 		--bind 'home:first' \
@@ -173,16 +215,28 @@ list_filter()
 		--bind 'insert:abort' \
 		--bind 'alt-q:abort' \
 		--bind 'ctrl-q:abort' \
+		--bind 'f5:abort' \
+		--bind "f6:execute(echo "${str_skip_plist_gen}")+abort" \
 		--bind 'tab:abort' | \
 	while read -r f
 	do
-		printf '%s/%s\n' "${DPATH_MUSIC}" "$f" >> "${FPATH_PLAYLIST}"
+		if [ "${i}" == 0 ]
+		then
+			if printf '%s' "${f}" | grep -q "${str_skip_plist_gen}"
+			then
+				item_play
+				exit $?
+			fi
+		fi
+
+		printf '%s/%s\n' "${PIMP_DPATH_MUSIC}" "${f}" >> "${PIMP_FPATH_PLAYLIST}"
+		local i=$((${i}+1))
 		continue
 	done
 
-	modtime_pimp_list_post="$(stat --format '%Y' "${FPATH_PLAYLIST}")"
+	int_modtime_plist_postgen="$(stat --format '%Y' "${PIMP_FPATH_PLAYLIST}")"
 
-	if [ "${modtime_pimp_list_post}" != "${modtime_pimp_list_pre}" ]
+	if [ "${int_modtime_plist_postgen}" != "${int_modtime_plist_pregen}" ]
 	then
 		item_play
 	fi
@@ -193,9 +247,9 @@ then
 	exit 1
 fi
 
-if ! [ -d "${DPATH_MUSIC}" ]
+if ! [ -d "${PIMP_DPATH_MUSIC}" ]
 then
-	printf 'pimp: music directory not found: %s\n' "${DPATH_MUSIC}" >&2
+	printf 'pimp: music directory not found: %s\n' "${PIMP_DPATH_MUSIC}" >&2
 	exit 1
 fi
 
@@ -221,7 +275,7 @@ case "$1" in
 		;;
 	
 	*)
-		if [ -f "${FPATH_PLAYLIST}" ]
+		if [ -f "${PIMP_FPATH_PLAYLIST}" ]
 		then
 			item_play
 		fi
