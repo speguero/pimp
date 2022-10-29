@@ -114,15 +114,11 @@ item_sound()
 	#              navigation.
 
 	case "$@" in
-		select)
-			ffplay -f lavfi -i 'sine=frequency=2000:duration=0.025' \
-				-autoexit -nodisp > /dev/null 2>&1
-			;;
 		play)
 			ffplay -f lavfi -i 'sine=frequency=1000:duration=0.025' \
 				-autoexit -nodisp > /dev/null 2>&1
 			;;
-		*)
+		select|*)
 			ffplay -f lavfi -i 'sine=frequency=2000:duration=0.025' \
 				-autoexit -nodisp > /dev/null 2>&1
 			;;
@@ -159,7 +155,7 @@ list_dirs()
 		--bind 'alt-q:abort' \
 		--bind 'ctrl-q:abort' \
 		--bind 'f5:execute(pimp filter)' \
-		--bind 'f6:execute(pimp play)' \
+		--bind 'f6:execute(pimp play; pimp play-sound select)' \
 		--bind 'f7:execute(pimp dir)+abort' \
 		--bind 'f8:execute(/bin/sh -uc "rm -f "${PIMP_DPATH_MPV_WL}"/*")' \
 		--bind 'tab:abort'
