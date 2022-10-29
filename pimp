@@ -16,11 +16,13 @@
 PIMP_DPATH_MPV_WL="${PIMP_DPATH_MPV_WL-"$HOME/.cache/pimp/mpv_watch_later"}"
 PIMP_DPATH_MUSIC="${PIMP_DPATH_MUSIC-"$HOME/Music"}"
 PIMP_FPATH_PLAYLIST="${PIMP_FPATH_PLAYLIST-"$HOME/.cache/pimp/playlist"}"
-prereq="pimp espeak ffplay mpv"
 
 export PIMP_DPATH_MPV_WL
 export PIMP_DPATH_MUSIC
 export PIMP_FPATH_PLAYLIST
+
+arg="$(printf '%s\n' "$*" | sed 's/\w*//' | sed '/^$/d' | cut -d ' ' -f2-)"
+prereq="pimp espeak ffplay mpv"
 
 check_prereq()
 {
@@ -86,7 +88,7 @@ item_play()
 
 		mpv \
 			--term-title='pimp' \
-			--msg-level=all=error \
+			--msg-level=all=no,term-msg=status,statusline=status,cplayer=error,ffmpeg=fatal,ffmpeg/demuxer=error \
 			--term-playing-msg='\nPlaying: ${filename}\n' \
 			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
 			--display-tags= \
@@ -217,7 +219,8 @@ list_filter()
 		--bind 'alt-q:abort' \
 		--bind 'ctrl-q:abort' \
 		--bind 'f5:abort' \
-		--bind "f6:execute(echo "${str_skip_plist_gen}")+abort" \
+		--bind "f6:execute(printf '%s\n' "${str_skip_plist_gen}")+abort" \
+		--bind 'f7:execute(pimp filter)+abort' \
 		--bind 'tab:abort' | \
 	while read -r f
 	do
@@ -258,22 +261,22 @@ fi
 
 case "$1" in
 	dir|d)
-		list_dirs "$2"
+		list_dirs "${arg}"
 		exit
 		;;
 	
 	filter|f)
-		list_filter "$2"
+		list_filter "${arg}"
 		exit
 		;;
 
 	play|slap|p)
-		item_play "$2"
+		item_play "${arg}"
 		exit $?
 		;;
 
 	play-sound)
-		item_sound "$2"
+		item_sound "${arg}"
 		exit 
 		;;
 	
