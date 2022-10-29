@@ -260,6 +260,9 @@ then
 	exit 1
 fi
 
+# set title of terminal emulator.
+printf "\033]0;pimp\007"
+
 case "$1" in
 	dir|d)
 		list_dirs "${arg}"
