@@ -24,8 +24,10 @@ export PIMP_FPATH_PLAYLIST
 arg="$(printf '%s\n' "$*" | sed 's/\w*//' | sed '/^$/d' | cut -d ' ' -f2-)"
 prereq="pimp espeak ffplay mpv"
 
-check_prereq()
+check_prereqs()
 {
+	#  description: ensures program prerequisites are in $PATH.
+
 	local result=0
 
 	printf '%s' "$*" | sed 's/$/\n/g' | sed 's/ /\n/g' | \
@@ -34,7 +36,7 @@ check_prereq()
 		if ! command -v "${i}" > /dev/null 2>&1
 		then
 			result=1
-			printf 'pimp: prerequisite "%s" not found\n' "${i}" >&2
+			printf 'pimp: prerequisite "%s" not found in $PATH\n' "${i}" >&2
 		fi
 	done
 
@@ -43,8 +45,8 @@ check_prereq()
 
 create_list()
 {
-	# description: generates recursive file list of specified directory
-	#              and saves output as playlist file.
+	#  description: generates recursive file list of specified directory
+	#               and saves output as playlist file.
 
 	if ! [ -d "$(dirname "${PIMP_FPATH_PLAYLIST}")" ]
 	then
@@ -60,7 +62,7 @@ create_list()
 
 item_play()
 {
-	# description: plays playlist file.
+	#  description: plays contents of playlist file.
 
 	pkill espeak
 	pkill ffplay
@@ -103,15 +105,14 @@ item_play()
 			--shuffle \
 			"$@"
 	else
-		printf 'pimp: cannot find %s\n' "${PIMP_FPATH_PLAYLIST}" >&2
+		printf 'pimp: playlist file not found: %s\n' "${PIMP_FPATH_PLAYLIST}" >&2
 		return 1
 	fi
 }
 
 item_sound()
 {
-	# description: produces sound effects for auditory guidance /
-	#              navigation.
+	#  description: produces sound effects for auditory navigation.
 
 	case "$@" in
 		play)
@@ -144,10 +145,6 @@ list_dirs()
 		--layout=reverse \
 		--preview '(printf "%s" {} | sed "s/\//, /g" | espeak -a 250 -s 300 && pimp play-sound select)' \
 		--preview-window 0% \
-		--bind 'tab:abort' \
-		--bind 'insert:abort' \
-		--bind 'alt-q:abort' \
-		--bind 'ctrl-q:abort' \
 		--bind "enter:execute(pimp play {}; pimp play-sound select)" \
 		--bind "double-click:execute(pimp play {}; pimp play-sound select)" \
 		--bind 'change:first' \
@@ -155,6 +152,10 @@ list_dirs()
 		--bind 'bspace:clear-query' \
 		--bind 'home:first' \
 		--bind 'end:last' \
+		--bind 'tab:abort' \
+		--bind 'insert:abort' \
+		--bind 'alt-q:abort' \
+		--bind 'ctrl-q:abort' \
 		--bind 'f5:execute(pimp filter)' \
 		--bind 'f6:execute(pimp play; pimp play-sound select)' \
 		--bind 'f7:execute(pimp dir)+abort' \
@@ -164,27 +165,45 @@ list_dirs()
 
 list_filter()
 {
-	#  descriptions:
+	#  ----------------------------------------------------------------
+	#  purpose of general variables:
+	#  ----------------------------------------------------------------
 	#  
 	#  var int_modtime_plist_*gen
 	#  --------------------------
-	#  retreives modified epoch timestamp of $PIMP_FPATH_PLAYLIST before
-	#  and after `fzf` invocation, to determine whether the content of
-	#  said file was updated upon termination of said program.
+	#  allows for playing contents of playlist file, if modified. gets
+	#  modified timestamp of ${PIMP_FPATH_PLAYLIST} before and after
+	#  `fzf` invocation.
+	#  
+	#  ----------------------------------------------------------------
+	#  purpose of "workaround" variables, due to mandatory "while read"
+	#  loop processing of `fzf` output:
+	#  ----------------------------------------------------------------
+	#  
+	#  var int_pimp_quit
+	#  -----------------
+	#  facilitiates user-requested termination of pimp without
+	#  1) alteraton of playlist file; or 2) playing playlist file, if
+	#  modified by another pimp instance while pimp filter was running.
+	#  
+	#  `exit`, within loop, behaves as `return` or `break`.
+	#  
+	#  var int_pimp_refresh
+	#  --------------------
+	#  facilitiates refresh of pimp filter without impacting
+	#  resumption of music playback, which can happen due to playlist
+	#  file alteration via loop processing.
+	#  
+	#  `exit`, within loop, behaves as `return` or `break`.
 	#  
 	#  var str_skip_plist_gen
 	#  ----------------------
-	#  generates random string; used as output to facilitate a user's
-	#  wish to resume music playback (when using the pimp filter)
-	#  without selecting what music to play.
-	#  
-	#  cannot use `fzf --bind` for such a purpose due to loop processing
-	#  of `fzf` output below. a conditional statement detecting a match
-	#  between `fzf` output and this var serves as a workaround.
+	#  facilitates user's wish to resume music playback without
+	#  requiring a restart of pimp or re-selecting what to play.
 	#  
 	#  var i
 	#  -----
-	#  avoids unnecessary processing of `grep` upon the first loop.
+	#  avoids processing of `grep` upon first loop iteration.
 
 	local int_modtime_plist_pregen="$(stat --format '%Y' "${PIMP_FPATH_PLAYLIST}")"
 	local int_pimp_quit="$(cat /dev/random | tr -dc '0-9' | fold -w 2 | head -n 1)"
@@ -209,18 +228,18 @@ list_filter()
 		--tac \
 		--header-lines=0 \
 		--layout=reverse \
-		--bind "esc:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
-		--bind "tab:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
-		--bind "insert:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
-		--bind "alt-q:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
-		--bind "ctrl-q:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
-		--bind "f5:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
 		--bind 'enter:select-all+accept' \
 		--bind 'double-click:select-all+accept' \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(pimp play-sound play)' \
 		--bind 'home:first' \
 		--bind 'end:last' \
+		--bind "esc:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
+		--bind "tab:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
+		--bind "insert:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
+		--bind "alt-q:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
+		--bind "ctrl-q:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
+		--bind "f5:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
 		--bind "f6:execute(printf '%s\n' "${str_skip_plist_gen}")+abort" \
 		--bind "f7:execute(printf '%s\n' "${int_pimp_refresh}")+abort" \
 		--bind 'f8:execute(/bin/sh -uc "rm -f "${PIMP_DPATH_MPV_WL}"/*")' | \
@@ -228,16 +247,19 @@ list_filter()
 	do
 		if [ "${i}" == 0 ]
 		then
+			#  exit loop and quit filter:
 			if printf '%s' "${f}" | grep -q "${int_pimp_quit}"
 			then
 				exit "$int_pimp_quit"
 			fi
 
+			#  exit loop and refresh filter:
 			if printf '%s' "${f}" | grep -q "${int_pimp_refresh}"
 			then
 				exit "$int_pimp_refresh"
 			fi
 
+			#  resume playback and quit filter upon loop exit:
 			if printf '%s' "${f}" | grep -q "${str_skip_plist_gen}"
 			then
 				item_play
@@ -245,31 +267,39 @@ list_filter()
 			fi
 		fi
 
+		#  delete playlist file if loop was
+		#  not exited during first loop iteration:
 		if [ "${i}" == 0 ]
 		then
 			rm -f "${PIMP_FPATH_PLAYLIST}"
 		fi
 
+		#  add absolute path of filtered files to playlist file:
 		printf '%s/%s\n' "${PIMP_DPATH_MUSIC}" "${f}" >> "${PIMP_FPATH_PLAYLIST}"
 		local i=$((${i}+1))
 		continue
 	done
 
-	int_exit_code="$(echo $?)"
+	#  get exit code deriving from loop:
+	local int_loop_return_code="$(echo $?)"
 
-	if [ "${int_exit_code}" == "${int_pimp_quit}" ]
+	#  quit filter:
+	if [ "${int_loop_return_code}" == "${int_pimp_quit}" ]
 	then
 		return
 	fi
 
-	if [ "${int_exit_code}" == "${int_pimp_refresh}" ]
+	#  refresh filter:
+	if [ "${int_loop_return_code}" == "${int_pimp_refresh}" ]
 	then
 		list_filter
 		return
 	fi
 	
+	#  get modified timestamp of playlist file:
 	int_modtime_plist_postgen="$(stat --format '%Y' "${PIMP_FPATH_PLAYLIST}")"
 
+	#  if no timestamp match, play contents of playlist file:
 	if [ "${int_modtime_plist_postgen}" != "${int_modtime_plist_pregen}" ]
 	then
 		item_play
@@ -277,7 +307,7 @@ list_filter()
 	fi
 }
 
-if ! check_prereq "${prereq}"
+if ! check_prereqs "${prereq}"
 then
 	exit 1
 fi
@@ -288,7 +318,7 @@ then
 	exit 1
 fi
 
-# set title of terminal emulator.
+#  set title of terminal emulator:
 printf "\033]0;pimp\007"
 
 case "$1" in
@@ -313,6 +343,7 @@ case "$1" in
 		;;
 	
 	*)
+		#  default deliberately for car stereos:
 		if [ -f "${PIMP_FPATH_PLAYLIST}" ]
 		then
 			item_play
