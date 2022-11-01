@@ -128,27 +128,42 @@ item_sound()
 
 list_dirs()
 {
+	if printf '%s' "$*" | grep -q '^\-q\s' || printf '%s' "$*" | grep -q '^\-q$'
+	then
+		#  disable auditory navigation:
+		local arg_fzf_preview=''
+		local arg_fzf_query="$(printf '%s' "$*" | sed 's/^\-q\s*//g')"
+		local arg_pimp_quiet='-q'
+		
+		(item_sound select &)
+	else
+		#  default behavior; keep auditory navigation for screen-less car stereos:
+		local arg_fzf_preview='printf "%s" {} | sed "s/\//, /g" | espeak -a 250 -s 300 && pimp play-sound select'
+		local arg_fzf_query="$*"
+		local arg_pimp_quiet=''
+	fi
+
 	clear
 
 	find -L "${PIMP_DPATH_MUSIC}" -type d -printf '%P\n' | sort -r | sed '/^$/d' | sed '$a.' | \
 	fzf -i -s -m -e \
-		--header='pimp (dir)' \
+		--header 'pimp (dir)' \
 		--header-first \
-		--border=rounded \
-		--color=fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:1,header:11,prompt:7,info:8,query:15 \
+		--border rounded \
+		--color fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:1,header:11,prompt:7,info:8,query:15 \
 		--prompt '> ' \
-		--algo=v1 \
-		--query="$*" \
+		--algo v1 \
+		--query "${arg_fzf_query}" \
 		--literal \
 		--cycle \
 		--tac \
-		--layout=reverse \
-		--preview '(printf "%s" {} | sed "s/\//, /g" | espeak -a 250 -s 300 && pimp play-sound select)' \
+		--layout reverse \
+		--preview "${arg_fzf_preview}" \
 		--preview-window 0% \
 		--bind "enter:execute(pimp play {}; pimp play-sound select)" \
 		--bind "double-click:execute(pimp play {}; pimp play-sound select)" \
 		--bind 'change:first' \
-		--bind 'backward-eof:execute-silent(printf clear | espeak -a 250 -s 300)' \
+		--bind 'backward-eof:execute-silent(pimp play-sound play)' \
 		--bind 'bspace:clear-query' \
 		--bind 'home:first' \
 		--bind 'end:last' \
@@ -158,7 +173,7 @@ list_dirs()
 		--bind 'ctrl-q:abort' \
 		--bind 'f5:execute(pimp filter)' \
 		--bind 'f6:execute(pimp play; pimp play-sound select)' \
-		--bind 'f7:execute(pimp dir)+abort' \
+		--bind "f7:execute(pimp dir "${arg_pimp_quiet}")+abort" \
 		--bind 'f8:execute(/bin/sh -uc "rm -f "${PIMP_DPATH_MPV_WL}"/*")' \
 		--bind 'tab:abort'
 }
@@ -212,22 +227,22 @@ list_filter()
 	local i=0
 
 	clear
-	item_sound select
+	(item_sound select &)
 
 	find -L "${PIMP_DPATH_MUSIC}" -type f -printf '%P\n' | sort -r | sed '/^$/d' | \
 	fzf -i -s -m -e \
-		--header='pimp (filter)' \
+		--header 'pimp (filter)' \
 		--header-first \
-		--border=rounded \
-		--color=fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:12,header:11,prompt:7,info:8,query:15 \
+		--border rounded \
+		--color fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:12,header:11,prompt:7,info:8,query:15 \
 		--prompt '> ' \
-		--algo=v1 \
-		--query="$*" \
+		--algo v1 \
+		--query "$*" \
 		--literal \
 		--cycle \
 		--tac \
-		--header-lines=0 \
-		--layout=reverse \
+		--header-lines 0 \
+		--layout reverse \
 		--bind 'enter:select-all+accept' \
 		--bind 'double-click:select-all+accept' \
 		--bind 'change:first' \
@@ -343,7 +358,7 @@ case "$1" in
 		;;
 	
 	*)
-		#  default deliberately for car stereos:
+		#  default behavior; designed for car stereos:
 		if [ -f "${PIMP_FPATH_PLAYLIST}" ]
 		then
 			item_play
