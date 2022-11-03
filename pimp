@@ -174,7 +174,7 @@ list_dirs()
 		--bind 'f5:execute(pimp filter)' \
 		--bind 'f6:execute(pimp play; pimp play-sound select)' \
 		--bind "f7:execute(pimp dir "${arg_pimp_quiet}")+abort" \
-		--bind 'f8:execute(/bin/sh -uc "rm -f "${PIMP_DPATH_MPV_WL}"/*")' \
+		--bind 'f8:execute(pimp rmwl)' \
 		--bind 'tab:abort'
 }
 
@@ -257,7 +257,7 @@ list_filter()
 		--bind "f5:execute(printf '%s\n' "${int_pimp_quit}")+abort" \
 		--bind "f6:execute(printf '%s\n' "${str_skip_plist_gen}")+abort" \
 		--bind "f7:execute(printf '%s\n' "${int_pimp_refresh}")+abort" \
-		--bind 'f8:execute(/bin/sh -uc "rm -f "${PIMP_DPATH_MPV_WL}"/*")' | \
+		--bind 'f8:execute(pimp rmwl)' | \
 	while read -r f
 	do
 		if [ "${i}" == 0 ]
@@ -322,6 +322,21 @@ list_filter()
 	fi
 }
 
+remove_mpvwl()
+{
+	#  description: delete mpv watch_later cache.
+
+	/bin/sh -uc "rm -f "${PIMP_DPATH_MPV_WL}"/*"
+
+	if [ -d "${PIMP_DPATH_MPV_WL}" ]
+	then
+		return 0
+	else
+		printf 'pimp: contents of mpv watch_later directory "%s" could not be deleted.\n' "${PIMP_DPATH_MPV_WL}" >&2
+		return 1
+	fi
+}
+
 if ! check_prereqs "${prereq}"
 then
 	exit 1
@@ -339,22 +354,27 @@ printf "\033]0;pimp\007"
 case "$1" in
 	dir|d)
 		list_dirs "${arg}"
-		exit
+		exit $?
 		;;
 	
 	filter|f)
 		list_filter "${arg}"
-		exit
+		exit $?
 		;;
 
 	play|slap|p)
 		item_play "${arg}"
-		exit
+		exit $?
 		;;
 
 	play-sound)
 		item_sound "${arg}"
-		exit 
+		exit $?
+		;;
+
+	rmwl)
+		remove_mpvwl
+		exit $?
 		;;
 	
 	*)
