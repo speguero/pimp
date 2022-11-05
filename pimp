@@ -43,23 +43,6 @@ check_prereqs()
 	return "${result}"
 }
 
-create_list()
-{
-	#  description: generates recursive file list of specified directory
-	#               and saves output as playlist file.
-
-	if ! [ -d "$(dirname "${PIMP_FPATH_PLAYLIST}")" ]
-	then
-		mkdir -p "$(dirname "${PIMP_FPATH_PLAYLIST}")" > /dev/null 2>&1
-	fi
-
-	if [ -d "${PIMP_DPATH_MUSIC}/$*" ]
-	then
-		local dpath_full="$(realpath "${PIMP_DPATH_MUSIC}/$*")"
-		find -L "${dpath_full}" -type f | sort -R > "${PIMP_FPATH_PLAYLIST}"
-	fi
-}
-
 item_play()
 {
 	#  description: plays contents of playlist file.
@@ -67,12 +50,22 @@ item_play()
 	pkill espeak
 	pkill ffplay
 
+	local dpath_pimp_cache="$(dirname "${PIMP_FPATH_PLAYLIST}")"
+
+	if ! [ -d "${dpath_pimp_cache}" ]
+	then
+		mkdir -p "${dpath_pimp_cache}" > /dev/null 2>&1
+	fi
+
 	if ! [ -z "$*" ]
 	then
 		for i in "$*"
 		do
-			create_list "${i}"
-			break
+			if [ -d "${PIMP_DPATH_MUSIC}/$*" ]
+			then
+				local dpath_full="$(realpath "${PIMP_DPATH_MUSIC}/$*")"
+				find -L "${dpath_full}" -type f | sort -R > "${PIMP_FPATH_PLAYLIST}"
+			fi
 		done
 	fi
 
@@ -102,7 +95,7 @@ item_play()
 			--save-position-on-quit \
 			--watch-later-directory="${PIMP_DPATH_MPV_WL}" \
 			--watch-later-options-remove=pause \
-			"$@"
+			"$*"
 	else
 		printf 'pimp: playlist file not found: %s\n' "${PIMP_FPATH_PLAYLIST}" >&2
 		return 1
@@ -113,7 +106,7 @@ item_sound()
 {
 	#  description: produces sound effects for auditory navigation.
 
-	case "$@" in
+	case "$*" in
 		play)
 			ffplay -f lavfi -i 'sine=frequency=1000:duration=0.025' \
 				-autoexit -nodisp > /dev/null 2>&1
@@ -259,7 +252,7 @@ list_filter()
 		--bind 'f8:execute(pimp rmwl)' | \
 	while read -r f
 	do
-		if [ "${i}" == 0 ]
+		if [ ${i} -eq 0 ]
 		then
 			#  exit loop and quit filter:
 			if printf '%s' "${f}" | grep -q "${int_pimp_quit}"
@@ -283,7 +276,7 @@ list_filter()
 
 		#  delete playlist file if loop was
 		#  not exited during first loop iteration:
-		if [ "${i}" == 0 ]
+		if [ ${i} -eq 0 ]
 		then
 			rm -f "${PIMP_FPATH_PLAYLIST}"
 			rm -f "${PIMP_FPATH_PLAYLIST}.tmp"
@@ -299,13 +292,13 @@ list_filter()
 	local int_loop_return_code="$(echo $?)"
 
 	#  quit filter:
-	if [ "${int_loop_return_code}" == "${int_pimp_quit}" ]
+	if [ "${int_loop_return_code}" = "${int_pimp_quit}" ]
 	then
 		return
 	fi
 
 	#  refresh filter:
-	if [ "${int_loop_return_code}" == "${int_pimp_refresh}" ]
+	if [ "${int_loop_return_code}" = "${int_pimp_refresh}" ]
 	then
 		list_filter
 		return
@@ -329,7 +322,7 @@ remove_mpvwl()
 {
 	#  description: delete mpv watch_later cache.
 
-	/bin/sh -uc "rm -f "${PIMP_DPATH_MPV_WL}"/*"
+	sh -uc "rm -f "${PIMP_DPATH_MPV_WL}"/*"
 
 	if [ -d "${PIMP_DPATH_MPV_WL}" ]
 	then
