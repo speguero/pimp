@@ -43,6 +43,28 @@ check_prereqs()
 	return "${result}"
 }
 
+get_file_modtime()
+{
+	local f="$1"
+	local os="$(uname -s | tr A-Z a-z)"
+
+	case "${os}" in
+		openbsd)
+			local modtime="$(stat -f %m "${f}")"
+			printf '%s' "${modtime}"
+			return 0
+		;;
+
+		linux)
+			local modtime="$(stat -c %Y "${f}")"
+			printf '%s' "${modtime}"
+			return 0
+		;;
+	esac
+
+	return 1
+}
+
 item_play()
 {
 	#  description: plays contents of playlist file.
@@ -61,6 +83,8 @@ item_play()
 	then
 		for i in "$*"
 		do
+			#  generate recursive dir file list as
+			#  playlist file content:
 			if [ -d "${PIMP_DPATH_MUSIC}/$*" ]
 			then
 				local dpath_full="$(realpath "${PIMP_DPATH_MUSIC}/$*")"
@@ -72,7 +96,7 @@ item_play()
 	if [ -f "${PIMP_FPATH_PLAYLIST}" ]
 	then
 		clear
-		printf 'pimp: initiating the slap... (⌐■_■)\n'
+		printf '%spimp: initiating the slap... (⌐■_■)%s\n' "$(tput bold)" "$(tput sgr0)"
 
 		if ! [ -d "${PIMP_DPATH_MPV_WL}" ]
 		then
@@ -176,10 +200,10 @@ list_filter()
 	#  purpose of general variables:
 	#  ----------------------------------------------------------------
 	#  
-	#  var str_cksum_plist_*loop
-	#  -------------------------
+	#  var int_modtime_plist_*loop
+	#  ---------------------------
 	#  allows for playing contents of playlist file, if modified. gets
-	#  md5 checksums of ${PIMP_FPATH_PLAYLIST} before and after
+	#  modified timestamp of ${PIMP_FPATH_PLAYLIST} before and after
 	#  `fzf` invocation.
 	#  
 	#  ----------------------------------------------------------------
@@ -214,7 +238,7 @@ list_filter()
 
 	local int_pimp_quit="$(cat /dev/random | tr -dc '1-9' | fold -w 2 | head -n 1)"
 	local int_pimp_refresh="$(cat /dev/random | tr -dc '1-9' | fold -w 2 | head -n 1)"
-	local str_cksum_plist_preloop="$(cksum -a md5 "${PIMP_FPATH_PLAYLIST}")"
+	local int_modtime_plist_preloop="$(get_file_modtime "${PIMP_FPATH_PLAYLIST}")"
 	local str_skip_plist_gen="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 10 | head -n 1)"
 	local i=0
 
@@ -303,11 +327,11 @@ list_filter()
 		return
 	fi
 
-	#  get md5 checksum of playlist file:
-	str_cksum_plist_postloop="$(cksum -a md5 "${PIMP_FPATH_PLAYLIST}")"
+	#  get timestamp of playlist file once more:
+	int_modtime_plist_postloop="$(get_file_modtime "${PIMP_FPATH_PLAYLIST}")"
 
 	#  if no match, shuffle and play contents of playlist file:
-	if [ "${str_cksum_plist_postloop}" != "${str_cksum_plist_preloop}" ]
+	if [ "${int_modtime_plist_postloop}" != "${int_modtime_plist_preloop}" ]
 	then
 		sort -R "${PIMP_FPATH_PLAYLIST}" -o "${PIMP_FPATH_PLAYLIST}"
 
