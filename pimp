@@ -43,8 +43,10 @@ check_prereqs()
 	return "${result}"
 }
 
-get_file_modtime()
+get_f_mtime()
 {
+	#  description: gets modified epoch timestamp of file.
+
 	local f="$1"
 	local os="$(uname -s | tr A-Z a-z)"
 
@@ -56,6 +58,7 @@ get_file_modtime()
 		;;
 
 		linux)
+			#  pesky gnu...
 			local modtime="$(stat -c %Y "${f}")"
 			printf '%s' "${modtime}"
 			return 0
@@ -65,7 +68,7 @@ get_file_modtime()
 	return 1
 }
 
-item_play()
+play_music()
 {
 	#  description: plays contents of playlist file.
 
@@ -103,7 +106,7 @@ item_play()
 			mkdir -p "${PIMP_DPATH_MPV_WL}"
 		fi
 
-		item_sound play
+		play_sound play
 
 		mpv \
 			--term-title='pimp' \
@@ -126,7 +129,7 @@ item_play()
 	fi
 }
 
-item_sound()
+play_sound()
 {
 	#  description: produces sound effects for auditory navigation.
 
@@ -142,7 +145,7 @@ item_sound()
 	esac
 }
 
-list_dirs()
+show_dname_filter()
 {
 	if printf '%s' "$*" | grep -q '^\-q\s' || printf '%s' "$*" | grep -q '^\-q$'
 	then
@@ -151,7 +154,7 @@ list_dirs()
 		local arg_fzf_query="$(printf '%s' "$*" | sed 's/^\-q\s*//g')"
 		local arg_pimp_quiet='-q'
 		
-		(item_sound select &)
+		(play_sound select &)
 	else
 		#  default behavior; keep auditory navigation for screen-less car stereos:
 		local arg_fzf_preview='printf "%s" {} | sed "s/\//, /g" | espeak -a 250 -s 300 && pimp play-sound select'
@@ -187,14 +190,14 @@ list_dirs()
 		--bind 'insert:abort' \
 		--bind 'alt-q:abort' \
 		--bind 'ctrl-q:abort' \
-		--bind 'f5:execute(pimp filter)' \
+		--bind 'f5:execute(pimp file)' \
 		--bind 'f6:execute(pimp play; pimp play-sound select)' \
 		--bind "f7:execute(pimp dir "${arg_pimp_quiet}")+abort" \
 		--bind 'f8:execute(pimp rmwl)' \
 		--bind 'tab:abort'
 }
 
-list_filter()
+show_fpath_filter()
 {
 	#  ----------------------------------------------------------------
 	#  purpose of general variables:
@@ -215,13 +218,14 @@ list_filter()
 	#  -----------------
 	#  facilitiates user-requested termination of pimp without
 	#  1) alteraton of playlist file; or 2) playing playlist file, if
-	#  modified by another pimp instance while pimp filter was running.
+	#  modified by another pimp instance while pimp file filter was
+	#  running.
 	#  
 	#  `exit`, within loop, behaves as `return` or `break`.
 	#  
 	#  var int_pimp_refresh
 	#  --------------------
-	#  facilitiates refresh of pimp filter without impacting
+	#  facilitiates refresh of pimp file filter without impacting
 	#  resumption of music playback, which can happen due to playlist
 	#  file alteration via loop processing.
 	#  
@@ -236,18 +240,18 @@ list_filter()
 	#  -----
 	#  avoids processing of `grep` upon first loop iteration.
 
+	local int_modtime_plist_preloop="$(get_f_mtime "${PIMP_FPATH_PLAYLIST}")"
 	local int_pimp_quit="$(cat /dev/random | tr -dc '1-9' | fold -w 2 | head -n 1)"
 	local int_pimp_refresh="$(cat /dev/random | tr -dc '1-9' | fold -w 2 | head -n 1)"
-	local int_modtime_plist_preloop="$(get_file_modtime "${PIMP_FPATH_PLAYLIST}")"
 	local str_skip_plist_gen="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 10 | head -n 1)"
 	local i=0
 
 	clear
-	(item_sound select &)
+	(play_sound select &)
 
 	find -L "${PIMP_DPATH_MUSIC}" -type f -printf '%P\n' | sort -r | sed '/^$/d' | \
 	fzf -i -s -m -e \
-		--header 'pimp (filter)' \
+		--header 'pimp (file)' \
 		--header-first \
 		--border rounded \
 		--color fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:12,header:11,prompt:7,info:8,query:15 \
@@ -293,7 +297,7 @@ list_filter()
 			#  resume playback and quit filter upon loop exit:
 			if printf '%s' "${f}" | grep -q "${str_skip_plist_gen}"
 			then
-				item_play
+				play_music
 				exit "${int_pimp_quit}"
 			fi
 		fi
@@ -323,19 +327,19 @@ list_filter()
 	#  refresh filter:
 	if [ "${int_loop_return_code}" = "${int_pimp_refresh}" ]
 	then
-		list_filter
+		show_fpath_filter
 		return
 	fi
 
 	#  get timestamp of playlist file once more:
-	int_modtime_plist_postloop="$(get_file_modtime "${PIMP_FPATH_PLAYLIST}")"
+	int_modtime_plist_postloop="$(get_f_mtime "${PIMP_FPATH_PLAYLIST}")"
 
 	#  if no match, shuffle and play contents of playlist file:
 	if [ "${int_modtime_plist_postloop}" != "${int_modtime_plist_preloop}" ]
 	then
 		sort -R "${PIMP_FPATH_PLAYLIST}" -o "${PIMP_FPATH_PLAYLIST}"
 
-		item_play
+		play_music
 		return
 	else
 		return
@@ -372,23 +376,23 @@ fi
 printf "\033]0;pimp\007"
 
 case "$1" in
-	dir|d)
-		list_dirs "${arg}"
+	d|dir)
+		show_dname_filter "${arg}"
 		exit $?
 		;;
 	
-	filter|f)
-		list_filter "${arg}"
+	f|file)
+		show_fpath_filter "${arg}"
 		exit $?
 		;;
 
-	play|slap|p)
-		item_play "${arg}"
+	p|play|slap)
+		play_music "${arg}"
 		exit $?
 		;;
 
 	play-sound)
-		item_sound "${arg}"
+		play_sound "${arg}"
 		exit $?
 		;;
 
@@ -401,10 +405,10 @@ case "$1" in
 		#  default behavior; designed for car stereos:
 		if [ -f "${PIMP_FPATH_PLAYLIST}" ]
 		then
-			item_play
+			play_music
 		fi
 
-		list_dirs
+		show_dname_filter
 		exit
 		;;
 esac
