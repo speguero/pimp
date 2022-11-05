@@ -176,10 +176,10 @@ list_filter()
 	#  purpose of general variables:
 	#  ----------------------------------------------------------------
 	#  
-	#  var int_modtime_plist_*gen
-	#  --------------------------
+	#  var str_cksum_plist_*loop
+	#  -------------------------
 	#  allows for playing contents of playlist file, if modified. gets
-	#  modified timestamp of ${PIMP_FPATH_PLAYLIST} before and after
+	#  md5 checksums of ${PIMP_FPATH_PLAYLIST} before and after
 	#  `fzf` invocation.
 	#  
 	#  ----------------------------------------------------------------
@@ -212,9 +212,9 @@ list_filter()
 	#  -----
 	#  avoids processing of `grep` upon first loop iteration.
 
-	local int_modtime_plist_pregen="$(stat --format '%Y' "${PIMP_FPATH_PLAYLIST}")"
-	local int_pimp_quit="$(cat /dev/random | tr -dc '0-9' | fold -w 2 | head -n 1)"
-	local int_pimp_refresh="$(cat /dev/random | tr -dc '0-9' | fold -w 2 | head -n 1)"
+	local int_pimp_quit="$(cat /dev/random | tr -dc '1-9' | fold -w 2 | head -n 1)"
+	local int_pimp_refresh="$(cat /dev/random | tr -dc '1-9' | fold -w 2 | head -n 1)"
+	local str_cksum_plist_preloop="$(cksum -a md5 "${PIMP_FPATH_PLAYLIST}")"
 	local str_skip_plist_gen="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 10 | head -n 1)"
 	local i=0
 
@@ -257,20 +257,20 @@ list_filter()
 			#  exit loop and quit filter:
 			if printf '%s' "${f}" | grep -q "${int_pimp_quit}"
 			then
-				exit "$int_pimp_quit"
+				exit "${int_pimp_quit}"
 			fi
 
 			#  exit loop and refresh filter:
 			if printf '%s' "${f}" | grep -q "${int_pimp_refresh}"
 			then
-				exit "$int_pimp_refresh"
+				exit "${int_pimp_refresh}"
 			fi
 
 			#  resume playback and quit filter upon loop exit:
 			if printf '%s' "${f}" | grep -q "${str_skip_plist_gen}"
 			then
 				item_play
-				exit "$int_pimp_quit"
+				exit "${int_pimp_quit}"
 			fi
 		fi
 
@@ -279,11 +279,10 @@ list_filter()
 		if [ ${i} -eq 0 ]
 		then
 			rm -f "${PIMP_FPATH_PLAYLIST}"
-			rm -f "${PIMP_FPATH_PLAYLIST}.tmp"
 		fi
 
-		#  add absolute path of filtered files to temp playlist file:
-		printf '%s/%s\n' "${PIMP_DPATH_MUSIC}" "${f}" >> "${PIMP_FPATH_PLAYLIST}.tmp"
+		#  add absolute path of filtered files to playlist file:
+		printf '%s/%s\n' "${PIMP_DPATH_MUSIC}" "${f}" >> "${PIMP_FPATH_PLAYLIST}"
 		local i=$((${i}+1))
 		continue
 	done
@@ -304,16 +303,17 @@ list_filter()
 		return
 	fi
 
-	#  shuffle contents of playlist file:
-	cat "${PIMP_FPATH_PLAYLIST}.tmp" | sort -R > "${PIMP_FPATH_PLAYLIST}"
-	
-	#  get modified timestamp of playlist file:
-	int_modtime_plist_postgen="$(stat --format '%Y' "${PIMP_FPATH_PLAYLIST}")"
+	#  get md5 checksum of playlist file:
+	str_cksum_plist_postloop="$(cksum -a md5 "${PIMP_FPATH_PLAYLIST}")"
 
-	#  if no timestamp match, play contents of playlist file:
-	if [ "${int_modtime_plist_postgen}" != "${int_modtime_plist_pregen}" ]
+	#  if no match, shuffle and play contents of playlist file:
+	if [ "${str_cksum_plist_postloop}" != "${str_cksum_plist_preloop}" ]
 	then
+		sort -R "${PIMP_FPATH_PLAYLIST}" -o "${PIMP_FPATH_PLAYLIST}"
+
 		item_play
+		return
+	else
 		return
 	fi
 }
