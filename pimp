@@ -56,7 +56,7 @@ create_list()
 	if [ -d "${PIMP_DPATH_MUSIC}/$*" ]
 	then
 		local dpath_full="$(realpath "${PIMP_DPATH_MUSIC}/$*")"
-		find -L "${dpath_full}" -type f | sort > "${PIMP_FPATH_PLAYLIST}"
+		find -L "${dpath_full}" -type f | sort -R > "${PIMP_FPATH_PLAYLIST}"
 	fi
 }
 
@@ -102,7 +102,6 @@ item_play()
 			--save-position-on-quit \
 			--watch-later-directory="${PIMP_DPATH_MPV_WL}" \
 			--watch-later-options-remove=pause \
-			--shuffle \
 			"$@"
 	else
 		printf 'pimp: playlist file not found: %s\n' "${PIMP_FPATH_PLAYLIST}" >&2
@@ -287,10 +286,11 @@ list_filter()
 		if [ "${i}" == 0 ]
 		then
 			rm -f "${PIMP_FPATH_PLAYLIST}"
+			rm -f "${PIMP_FPATH_PLAYLIST}.tmp"
 		fi
 
-		#  add absolute path of filtered files to playlist file:
-		printf '%s/%s\n' "${PIMP_DPATH_MUSIC}" "${f}" >> "${PIMP_FPATH_PLAYLIST}"
+		#  add absolute path of filtered files to temp playlist file:
+		printf '%s/%s\n' "${PIMP_DPATH_MUSIC}" "${f}" >> "${PIMP_FPATH_PLAYLIST}.tmp"
 		local i=$((${i}+1))
 		continue
 	done
@@ -310,6 +310,9 @@ list_filter()
 		list_filter
 		return
 	fi
+
+	#  shuffle contents of playlist file:
+	cat "${PIMP_FPATH_PLAYLIST}.tmp" | sort -R > "${PIMP_FPATH_PLAYLIST}"
 	
 	#  get modified timestamp of playlist file:
 	int_modtime_plist_postgen="$(stat --format '%Y' "${PIMP_FPATH_PLAYLIST}")"
