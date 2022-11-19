@@ -30,17 +30,24 @@ check_prereqs()
 {
 	#  description: ensures program prerequisites are in ${PATH}.
 
+	local i=0
 	local result=0
+	local s
 
-	printf '%s' "$*" | sed 's/$/\n/g' | sed 's/ /\n/g' | \
-	while read -r i
+	while read -r s
 	do
-		if ! command -v "${i}" > /dev/null 2>&1
+		if ! command -v "${s}" > /dev/null 2>&1
 		then
+			if [ ${i} -eq 0 ]
+			then
+				printf 'pimp: list of prerequisite programs not found within $PATH:\n\n' >&2
+			fi
+			
 			result=1
-			printf 'pimp: prerequisite "%s" not found in $PATH\n' "${i}" >&2
+			printf '%s\n' " - ${s}" >&2
+			i=$((${i}+1))
 		fi
-	done
+	done < <(printf '%s' "$*" | sed 's/$/\n/g' | sed 's/ /\n/g')
 
 	return "${result}"
 }
@@ -307,6 +314,7 @@ show_fpath_filter()
 	#  avoids processing of `grep` upon first loop iteration.
 
 	local dpath_music="${PIMP_DPATH_MUSIC}"
+	local f
 	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
 	local i=0
 	local int_dpath_sections="$(( $(printf '%s' "${dpath_music}" | sed 's/\// /g' | wc -w) + 2 ))"
