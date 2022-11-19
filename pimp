@@ -13,20 +13,22 @@
                                       -- -     -
 0
 
-PIMP_DPATH_MPV_WL="${PIMP_DPATH_MPV_WL-"$HOME/.cache/pimp/mpv_watch_later"}"
-PIMP_DPATH_MUSIC="${PIMP_DPATH_MUSIC-"$HOME/Music"}"
-PIMP_FPATH_PLAYLIST="${PIMP_FPATH_PLAYLIST-"$HOME/.cache/pimp/playlist"}"
-
-export PIMP_DPATH_MPV_WL
-export PIMP_DPATH_MUSIC
-export PIMP_FPATH_PLAYLIST
+PIMP_DPATH_CACHE="${PIMP_DPATH_CACHE-"${HOME}/.cache/pimp"}"
+PIMP_DPATH_MPV_WL="${PIMP_DPATH_MPV_WL-"${PIMP_DPATH_CACHE}/playback"}"
+PIMP_DPATH_MUSIC="${PIMP_DPATH_MUSIC-"${HOME}/Music"}"
+PIMP_FPATH_PLAYLIST="${PIMP_FPATH_PLAYLIST-"${PIMP_DPATH_CACHE}/playlist"}"
 
 arg="$(printf '%s\n' "$*" | awk '{$1=""; print}' | sed 's/^[[:space:]]*//g')"
 prereq="pimp espeak ffplay mpv"
 
+export PIMP_DPATH_CACHE
+export PIMP_DPATH_MPV_WL
+export PIMP_DPATH_MUSIC
+export PIMP_FPATH_PLAYLIST
+
 check_prereqs()
 {
-	#  description: ensures program prerequisites are in $PATH.
+	#  description: ensures program prerequisites are in ${PATH}.
 
 	local result=0
 
@@ -72,8 +74,13 @@ play_music()
 	pkill espeak
 	pkill ffplay
 	
-	local dpath_target_absol
-	local dpath_pimp_cache="$(dirname "${PIMP_FPATH_PLAYLIST}")"
+	local dname_target="$*"
+	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
+	local dpath_music="${PIMP_DPATH_MUSIC}"
+	local dpath_pimp_cache="${PIMP_DPATH_CACHE}"
+	local dpath_target
+	local fpath_mpv_wl_autosave_script="${dpath_pimp_cache}/autosave.lua"
+	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
 	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
 	if ! [ -d "${dpath_pimp_cache}" ]
@@ -81,21 +88,25 @@ play_music()
 		mkdir -p "${dpath_pimp_cache}" > /dev/null 2>&1
 	fi
 
-	if [ -n "$*" ]
+	#  if selected from dir filter:
+	if [ -n "${dname_target}" ]
 	then
-		for i in "$@"
-		do
-			#  generate recursive dir file list as
-			#  playlist file content:
-			if [ -d "${PIMP_DPATH_MUSIC}/${i}" ]
-			then
-				dpath_target_absol="$(realpath "${PIMP_DPATH_MUSIC}/${i}")"
-				find -L "${dpath_target_absol}" -type f | sort -R > "${PIMP_FPATH_PLAYLIST}"
-			fi
-		done
+		#  generate recursive dir file list as playlist file content:
+		if [ -d "${dpath_music}/${dname_target}" ]
+		then
+			dpath_target="$(realpath "${dpath_music}/${dname_target}")"
+			find -L "${dpath_target}" -type f | sort -R > "${fpath_playlist}"
+		else
+			return 1
+		fi
 	fi
 
-	if [ -f "${PIMP_FPATH_PLAYLIST}" ]
+	if ! [ -f "${fpath_mpv_wl_autosave_script}" ]
+	then
+		print_mpv_wl_autosave_script > "${fpath_mpv_wl_autosave_script}"
+	fi
+
+	if [ -f "${fpath_playlist}" ]
 	then
 		clear
 
@@ -109,30 +120,32 @@ play_music()
 				;;
 		esac
 
-		if ! [ -d "${PIMP_DPATH_MPV_WL}" ]
+		if ! [ -d "${dpath_mpv_wl}" ]
 		then
-			mkdir -p "${PIMP_DPATH_MPV_WL}"
+			mkdir -p "${dpath_mpv_wl}"
 		fi
 
 		play_sound play
 
 		mpv \
-			--audio-pitch-correction=no --af-add=scaletempo=speed=both \
+			--af-add=scaletempo=speed=both \
+			--audio-pitch-correction=no \
 			--display-tags= \
 			--loop-file=no \
 			--loop-playlist=inf \
 			--msg-level=all=no,term-msg=status,statusline=status,cplayer=error,ffmpeg=fatal,ffmpeg/demuxer=error \
 			--no-audio-display \
 			--no-video \
-			--playlist="${PIMP_FPATH_PLAYLIST}" \
+			--playlist="${fpath_playlist}" \
 			--save-position-on-quit \
+			--script="${fpath_mpv_wl_autosave_script}" \
 			--term-playing-msg='\nPlaying: ${filename}\n' \
 			--term-title='pimp' \
-			--watch-later-directory="${PIMP_DPATH_MPV_WL}" \
+			--watch-later-directory="${dpath_mpv_wl}" \
 			--watch-later-options-remove=pause \
 			"$()"
 	else
-		printf 'pimp: playlist file not found: %s\n' "${PIMP_FPATH_PLAYLIST}" >&2
+		printf 'pimp: playlist file not found: %s\n' "${fpath_playlist}" >&2
 		return 1
 	fi
 }
@@ -188,9 +201,10 @@ show_dname_filter()
 	local arg_fzf_preview
 	local arg_fzf_query
 	local arg_pimp_quiet="$(printf '%s' "$*" | awk '{print $1}' | grep '^-q$')"
-
-	#  facilitates removal of ${PIMP_DPATH_MUSIC} from pimp dir filter results:
-	local int_dpath_sections="$(($(printf '%s' "${PIMP_DPATH_MUSIC}" | sed 's/\// /g' | wc -w) + 2))"
+	local dpath_music="${PIMP_DPATH_MUSIC}"
+	
+	#  facilitates removal of ${dpath_music} from pimp dir filter results:
+	local int_dpath_sections="$(( $(printf '%s' "${dpath_music}" | sed 's/\// /g' | wc -w) + 2 ))"
 
 	case "${arg_pimp_quiet}" in
 		-q)
@@ -211,8 +225,9 @@ show_dname_filter()
 	esac
 
 	clear
+	printf "\033]0;pimp\007"  #  set terminal emulator title.
 
-	find -L "${PIMP_DPATH_MUSIC}" -type d | \
+	find -L "${dpath_music}" -type d | \
 	cut -d '/' -f "${int_dpath_sections}"- | sed '/^$/d' | sed '1i\
 .
 	' | sort -r | \
@@ -230,8 +245,8 @@ show_dname_filter()
 		--layout reverse \
 		--preview "${arg_fzf_preview}" \
 		--preview-window 0% \
-		--bind 'enter:execute(pimp rmwl; pimp play {}; pimp play-sound select)' \
-		--bind 'double-click:execute(pimp rmwl; pimp play {}; pimp play-sound select)' \
+		--bind 'enter:execute(pimp rmwl; pimp play {}; pimp play-sound select)+clear-query' \
+		--bind 'double-click:execute(pimp rmwl; pimp play {}; pimp play-sound select)+clear-query' \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(pimp play-sound play)' \
 		--bind 'bspace:clear-query' \
@@ -291,19 +306,22 @@ show_fpath_filter()
 	#  -----
 	#  avoids processing of `grep` upon first loop iteration.
 
-	local int_dpath_sections="$(($(printf '%s' "${PIMP_DPATH_MUSIC}" | sed 's/\// /g' | wc -w) + 2))"
+	local dpath_music="${PIMP_DPATH_MUSIC}"
+	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
+	local i=0
+	local int_dpath_sections="$(( $(printf '%s' "${dpath_music}" | sed 's/\// /g' | wc -w) + 2 ))"
 	local int_loop_return_code
-	local int_modtime_plist_preloop="$(get_f_mtime "${PIMP_FPATH_PLAYLIST}")"
+	local int_modtime_plist_preloop="$(get_f_mtime "${fpath_playlist}")"
 	local int_modtime_plist_postloop
 	local int_pimp_quit="$(cat /dev/random | tr -dc '1-9' | fold -w 2 | head -n 1)"
 	local int_pimp_refresh="$(cat /dev/random | tr -dc '1-9' | fold -w 2 | head -n 1)"
 	local str_skip_plist_gen="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 10 | head -n 1)"
-	local i=0
-
+	
 	clear
+	printf "\033]0;pimp\007"  #  set terminal emulator title.
 	(play_sound select &)
 
-	find -L "${PIMP_DPATH_MUSIC}" -type f | \
+	find -L "${dpath_music}" -type f | \
 	cut -d '/' -f "${int_dpath_sections}"- | sed '/^$/d' | sort -r | \
 	fzf -i -s -m -e \
 		--header 'pimp (file)' \
@@ -353,6 +371,7 @@ show_fpath_filter()
 			if printf '%s' "${f}" | grep -q "${str_skip_plist_gen}"
 			then
 				play_music
+				show_fpath_filter
 				exit "${int_pimp_quit}"
 			fi
 		fi
@@ -361,11 +380,11 @@ show_fpath_filter()
 		#  not exited during first loop iteration:
 		if [ ${i} -eq 0 ]
 		then
-			rm -f "${PIMP_FPATH_PLAYLIST}"
+			rm -f "${fpath_playlist}"
 		fi
 
 		#  add absolute path of filtered files to playlist file:
-		printf '%s/%s\n' "${PIMP_DPATH_MUSIC}" "${f}" >> "${PIMP_FPATH_PLAYLIST}"
+		printf '%s/%s\n' "${dpath_music}" "${f}" >> "${fpath_playlist}"
 		i=$((${i}+1))
 		continue
 	done
@@ -387,15 +406,16 @@ show_fpath_filter()
 	fi
 
 	#  get timestamp of playlist file once more:
-	int_modtime_plist_postloop="$(get_f_mtime "${PIMP_FPATH_PLAYLIST}")"
+	int_modtime_plist_postloop="$(get_f_mtime "${fpath_playlist}")"
 
 	#  if no match, shuffle and play contents of playlist file:
 	if [ "${int_modtime_plist_postloop}" != "${int_modtime_plist_preloop}" ]
 	then
-		sort -R "${PIMP_FPATH_PLAYLIST}" -o "${PIMP_FPATH_PLAYLIST}"
+		sort -R "${fpath_playlist}" -o "${fpath_playlist}"
 
 		remove_mpvwl
 		play_music
+		show_fpath_filter
 		return
 	else
 		return
@@ -406,16 +426,58 @@ remove_mpvwl()
 {
 	#  description: delete mpv watch_later cache.
 
-	sh -uc "rm -f ""${PIMP_DPATH_MPV_WL}""/*"
+	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
 
-	if [ -d "${PIMP_DPATH_MPV_WL}" ]
+	sh -uc "rm -f \"${dpath_mpv_wl}\"/*"
+
+	if [ -d "${dpath_mpv_wl}" ]
 	then
 		(play_sound delete &)
 		return 0
 	else
-		printf 'pimp: contents of mpv watch_later directory "%s" could not be deleted.\n' "${PIMP_DPATH_MPV_WL}" >&2
+		printf 'pimp: contents of playback cache directory "%s" could not be deleted.\n' "${dpath_mpv_wl}" >&2
 		return 1
 	fi
+}
+
+print_mpv_wl_autosave_script()
+{
+	cat <<EOF
+-- autosave.lua
+-- ------------
+-- 
+-- Periodically saves watch_later data during mpv playback.
+
+os        = require 'os'
+mp        = require 'mp'
+mp_opt    = require 'mp.options'
+timer_opt = {save_period = 15} -- seconds per mpv watch_later cache save.
+
+function add_wl()
+	mp.commandv('write-watch-later-config')
+end
+
+function del_wl(data)
+	if data.reason == 'eof' or data.reason == 'stop' then
+		local playlist = mp.get_property_native('playlist')
+		
+		for i, entry in pairs(playlist) do
+			if entry.id == data.playlist_entry_id then
+				mp.commandv('delete-watch-later-config', entry.filename)
+			end
+		end
+	end
+end
+
+mp_opt.read_options(timer_opt)
+save_period_timer = mp.add_periodic_timer(timer_opt.save_period, add_wl)
+
+mp.register_event('file-loaded', add_wl)
+mp.register_event('start-file',  add_wl)
+mp.register_event('end-file',    del_wl)
+EOF
+	
+	return 0
 }
 
 if ! check_prereqs "${prereq}"
@@ -428,9 +490,6 @@ then
 	printf 'pimp: music directory not found: %s\n' "${PIMP_DPATH_MUSIC}" >&2
 	exit 1
 fi
-
-#  set title of terminal emulator:
-printf "\033]0;pimp\007"
 
 case "$1" in
 	d|dir)
@@ -458,13 +517,12 @@ case "$1" in
 		exit $?
 		;;
 	*)
-		#  default behavior; designed for car stereos:
 		if [ -f "${PIMP_FPATH_PLAYLIST}" ]
 		then
 			play_music
 		fi
 
 		show_dname_filter
-		exit
+		exit $?
 		;;
 esac
