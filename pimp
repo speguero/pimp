@@ -26,26 +26,30 @@ check_prereqs()
 {
 	#  description: ensures program prerequisites are in ${PATH}.
 
-	local i=0
-	local result=0
-	local s
+	local err=0
+	local programs="$* -"  # < last program will not process without
+	local p                #   placeholder at end of string.
 
-	while read -r s
-	do
-		if ! command -v "${s}" > /dev/null 2>&1
-		then
-			if [ ${i} -eq 0 ]
+	printf '%s' "${programs}" | tr '[:space:]' '\n' | ( \
+
+		while read -r p
+		do
+			if ! command -v "${p}" > /dev/null 2>&1
 			then
-				printf 'pimp: list of prerequisite programs not found within $PATH:\n\n' >&2
+				if [ ${err} -eq 0 ]
+				then
+					printf 'pimp: list of prerequisite programs not found within $PATH:\n\n' >&2
+					err=1
+				fi
+				
+				printf '%s\n' " - ${p}" >&2
 			fi
-			
-			result=1
-			printf '%s\n' " - ${s}" >&2
-			i=$((${i}+1))
-		fi
-	done < <(printf '%s' "$*" | sed 's/$/\n/g' | sed 's/ /\n/g')
+		done
 
-	return "${result}"
+		return "${err}"
+	)
+
+	return $?
 }
 
 get_f_mtime()
