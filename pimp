@@ -86,6 +86,7 @@ play_music()
 	local dpath_music="${PIMP_DPATH_MUSIC}"
 	local dpath_pimp_cache="${PIMP_DPATH_CACHE}"
 	local dpath_target
+	local fpath_mpv_input_conf="${dpath_pimp_cache}/input.conf"
 	local fpath_mpv_wl_autosave_script="${dpath_pimp_cache}/autosave.lua"
 	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
 	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -106,6 +107,11 @@ play_music()
 		else
 			return 1
 		fi
+	fi
+
+	if ! [ -f "${fpath_mpv_input_conf}" ]
+	then
+		touch "${fpath_mpv_input_conf}"
 	fi
 
 	if ! [ -f "${fpath_mpv_wl_autosave_script}" ]
@@ -138,6 +144,7 @@ play_music()
 			--af-add=scaletempo=speed=both \
 			--audio-pitch-correction=no \
 			--display-tags= \
+			--input-conf="${fpath_mpv_input_conf}" \
 			--loop-file=no \
 			--loop-playlist=inf \
 			--msg-level=all=no,term-msg=status,statusline=status,cplayer=error,ffmpeg=fatal,ffmpeg/demuxer=error \
