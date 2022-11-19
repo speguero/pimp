@@ -13,18 +13,14 @@
                                       -- -     -
 0
 
-PIMP_DPATH_CACHE="${PIMP_DPATH_CACHE-"${HOME}/.cache/pimp"}"
-PIMP_DPATH_MPV_WL="${PIMP_DPATH_MPV_WL-"${PIMP_DPATH_CACHE}/playback"}"
-PIMP_DPATH_MUSIC="${PIMP_DPATH_MUSIC-"${HOME}/Music"}"
-PIMP_FPATH_PLAYLIST="${PIMP_FPATH_PLAYLIST-"${PIMP_DPATH_CACHE}/playlist"}"
-
 arg="$(printf '%s\n' "$*" | awk '{$1=""; print}' | sed 's/^[[:space:]]*//g')"
 prereq="pimp espeak ffplay mpv"
 
-export PIMP_DPATH_CACHE
-export PIMP_DPATH_MPV_WL
-export PIMP_DPATH_MUSIC
-export PIMP_FPATH_PLAYLIST
+PIMP_DPATH_CACHE="${PIMP_DPATH_CACHE-"${HOME}/.cache/pimp"}"
+PIMP_DPATH_CONF="${PIMP_DPATH_CONF-"${HOME}/.config/pimp"}"
+PIMP_DPATH_MPV_WL="${PIMP_DPATH_MPV_WL-"${PIMP_DPATH_CACHE}/playback"}"
+PIMP_DPATH_MUSIC="${PIMP_DPATH_MUSIC-"${HOME}/Music"}"
+PIMP_FPATH_PLAYLIST="${PIMP_FPATH_PLAYLIST-"${PIMP_DPATH_CACHE}/playlist"}"
 
 check_prereqs()
 {
@@ -84,16 +80,17 @@ play_music()
 	local dname_target="$*"
 	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
 	local dpath_music="${PIMP_DPATH_MUSIC}"
-	local dpath_pimp_cache="${PIMP_DPATH_CACHE}"
+	local dpath_cache="${PIMP_DPATH_CACHE}"
+	local dpath_conf="${PIMP_DPATH_CONF}"
 	local dpath_target
-	local fpath_mpv_input_conf="${dpath_pimp_cache}/input.conf"
-	local fpath_mpv_wl_autosave_script="${dpath_pimp_cache}/autosave.lua"
+	local fpath_mpv_input_conf="${dpath_conf}/input.conf"
+	local fpath_mpv_wl_autosave_script="${dpath_cache}/autosave.lua"
 	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
 	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
-	if ! [ -d "${dpath_pimp_cache}" ]
+	if ! [ -d "${dpath_cache}" ]
 	then
-		mkdir -p "${dpath_pimp_cache}" > /dev/null 2>&1
+		mkdir -p "${dpath_cache}" > /dev/null 2>&1
 	fi
 
 	#  if selected from dir filter:
@@ -111,6 +108,7 @@ play_music()
 
 	if ! [ -f "${fpath_mpv_input_conf}" ]
 	then
+		mkdir -p "${dpath_conf}" > /dev/null 2>&1
 		touch "${fpath_mpv_input_conf}"
 	fi
 
@@ -532,10 +530,12 @@ fi
 case "$1" in
 	d|dir)
 		show_dname_filter "${arg}"
+		clear
 		exit $?
 		;;
 	f|file)
 		show_fpath_filter "${arg}"
+		clear
 		exit $?
 		;;
 	h|-h)
@@ -565,6 +565,7 @@ case "$1" in
 		fi
 
 		show_dname_filter
+		clear
 		exit $?
 		;;
 esac
