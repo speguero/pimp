@@ -181,8 +181,6 @@ play_tts()
 			printf '%s' "${s}" | espeak -a 250 -s 235 || return 1
 			;;
 	esac
-
-	return 0
 }
 
 show_dname_filter()
@@ -232,8 +230,8 @@ show_dname_filter()
 		--layout reverse \
 		--preview "${arg_fzf_preview}" \
 		--preview-window 0% \
-		--bind 'enter:execute(pimp play {}; pimp play-sound select)' \
-		--bind 'double-click:execute(pimp play {}; pimp play-sound select)' \
+		--bind 'enter:execute(pimp rmwl; pimp play {}; pimp play-sound select)' \
+		--bind 'double-click:execute(pimp rmwl; pimp play {}; pimp play-sound select)' \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(pimp play-sound play)' \
 		--bind 'bspace:clear-query' \
@@ -396,6 +394,7 @@ show_fpath_filter()
 	then
 		sort -R "${PIMP_FPATH_PLAYLIST}" -o "${PIMP_FPATH_PLAYLIST}"
 
+		remove_mpvwl
 		play_music
 		return
 	else
