@@ -488,15 +488,38 @@ EOF
 	return 0
 }
 
+print_usage()
+{
+	cat <<EOF
+usage: pimp [d|f|h|p|dir|file|play|slap] [-q] [query]
+
+  d, dir [-q] [query]
+      Display recusive list of subdirectories to play within default
+      music directory or PIMP_DPATH_MUSIC.
+
+  f, file [query]
+      Display recusive list of files to play within default music
+      directory or PIMP_DPATH_MUSIC.
+
+  p, play, slap
+      Resume music playback of cached playlist file.
+
+  -q
+      Disable auditory navigation.
+EOF
+
+	return 1
+}
+
 if ! check_prereqs "${prereq}"
 then
-	exit 1
+	exit 2
 fi
 
 if ! [ -d "${PIMP_DPATH_MUSIC}" ]
 then
 	printf 'pimp: music directory not found: %s\n' "${PIMP_DPATH_MUSIC}" >&2
-	exit 1
+	exit 2
 fi
 
 case "$1" in
@@ -506,6 +529,10 @@ case "$1" in
 		;;
 	f|file)
 		show_fpath_filter "${arg}"
+		exit $?
+		;;
+	h|-h)
+		print_usage
 		exit $?
 		;;
 	p|play|slap)
