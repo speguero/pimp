@@ -157,6 +157,8 @@ play_music()
 			--script="${fpath_mpv_wl_autosave_script}" \
 			--term-playing-msg='\nPlaying: ${filename}\n' \
 			--term-title='pimp' \
+			--volume=100 \
+			--volume-max=100 \
 			--watch-later-directory="${dpath_mpv_wl}" \
 			--watch-later-options-remove=pause \
 			"$()"
