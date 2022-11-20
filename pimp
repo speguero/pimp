@@ -27,9 +27,8 @@ check_prerequisites()
 	#  description: ensures program prerequisites are in ${PATH}.
 
 	local err=0
-	local p
-	local programs="$* -"  # < last program will not process without
-                           #   placeholder at end of string.
+	local p                #   last program will not process without
+	local programs="$* -"  # < placeholder at end of string.
 
 	printf '%s' "${programs}" | tr '[:space:]' '\n' | ( \
 
@@ -224,26 +223,27 @@ play_tts()
 
 show_dname_filter()
 {
-	local arg_fzf_preview
-	local arg_fzf_query
-	local arg_pimp_quiet="$(printf '%s' "$*" | awk '{print $1}' | grep '^-q$')"
+	local arg_preview
+	local arg_query
+	local arg_quiet="$(printf '%s' "$*" | awk '{print $1}' | grep '^-q$')"
 	local dpath_music="${PIMP_DPATH_MUSIC}"
 	
 	#  facilitates removal of ${dpath_music} from pimp dir filter results:
 	local int_dpath_sections="$(( $(printf '%s' "${dpath_music}" | sed 's/\// /g' | wc -w) + 2 ))"
 
-	case "${arg_pimp_quiet}" in
+	case "${arg_quiet}" in
 		-q)
-			#  disable auditory navigation:
-			arg_fzf_query="$(printf '%s' "$*" | awk '{$1=""; print}' | sed 's/^[[:space:]]*//g')"
+			#  stop tts navigation:
+			arg_query="$(printf '%s' "$*" | awk '{$1=""; print}' | sed 's/^[[:space:]]*//g')"
 			
 			(play_sound select &)
 			;;
 		*)
-			arg_fzf_preview='printf "%s" {} | sed "s/\//, /g" | pimp play-tts && pimp play-sound select'
-			arg_fzf_query="$(printf '%s' "$*" | sed 's/^[[:space:]]*//g')"
+			#  keep tts navigation:
+			arg_preview='printf "%s" {} | sed "s/\//, /g" | pimp play-tts && pimp play-sound select'
+			arg_query="$(printf '%s' "$*" | sed 's/^[[:space:]]*//g')"
 
-			if [ -n "${arg_fzf_query}" ]
+			if [ -n "${arg_query}" ]
 			then
 				(play_sound select &)
 			fi
@@ -264,12 +264,12 @@ show_dname_filter()
 		--color fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:1,header:11,prompt:7,info:8,query:15 \
 		--prompt '> ' \
 		--algo v1 \
-		--query "${arg_fzf_query}" \
+		--query "${arg_query}" \
 		--literal \
 		--cycle \
 		--tac \
 		--layout reverse \
-		--preview "${arg_fzf_preview}" \
+		--preview "${arg_preview}" \
 		--preview-window 0% \
 		--bind 'enter:execute(pimp rmwl; pimp play {}; pimp play-sound select)+clear-query' \
 		--bind 'double-click:execute(pimp rmwl; pimp play {}; pimp play-sound select)+clear-query' \
@@ -284,7 +284,7 @@ show_dname_filter()
 		--bind 'ctrl-q:abort' \
 		--bind 'f5:execute(pimp file)' \
 		--bind 'f6:execute(pimp play; pimp play-sound select)' \
-		--bind "f7:execute(pimp dir ${arg_pimp_quiet})+abort" \
+		--bind "f7:execute(pimp dir ${arg_quiet})+abort" \
 		--bind 'f8:execute(pimp rmwl)' \
 		--bind 'tab:abort'
 }
@@ -332,6 +332,7 @@ show_fpath_filter()
 	#  -----
 	#  avoids processing of `grep` upon first loop iteration.
 
+	local arg_query="$*"
 	local dpath_music="${PIMP_DPATH_MUSIC}"
 	local f
 	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
@@ -357,7 +358,7 @@ show_fpath_filter()
 		--color fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:12,header:11,prompt:7,info:8,query:15 \
 		--prompt '> ' \
 		--algo v1 \
-		--query "$*" \
+		--query "${arg_query}" \
 		--literal \
 		--cycle \
 		--tac \
@@ -453,16 +454,16 @@ remove_mpvwl()
 {
 	#  description: delete mpv watch_later cache.
 
+	set -u
+
 	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
 
-	sh -uc "rm -f \"${dpath_mpv_wl}\"/*"
-
-	if [ -d "${dpath_mpv_wl}" ]
+	if rm -f "${dpath_mpv_wl}"/* > /dev/null 2>&1
 	then
 		(play_sound delete &)
 		return 0
 	else
-		printf 'pimp: contents of playback cache directory "%s" could not be deleted.\n' \
+		printf 'pimp: playback cache files stored within "%s" could not be deleted.\n' \
 			"${dpath_mpv_wl}" >&2
 		return 1
 	fi
