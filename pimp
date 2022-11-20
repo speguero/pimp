@@ -22,13 +22,14 @@ PIMP_DPATH_MPV_WL="${PIMP_DPATH_MPV_WL-"${PIMP_DPATH_CACHE}/playback"}"
 PIMP_DPATH_MUSIC="${PIMP_DPATH_MUSIC-"${HOME}/Music"}"
 PIMP_FPATH_PLAYLIST="${PIMP_FPATH_PLAYLIST-"${PIMP_DPATH_CACHE}/playlist"}"
 
-check_prereqs()
+check_prerequisites()
 {
 	#  description: ensures program prerequisites are in ${PATH}.
 
 	local err=0
+	local p
 	local programs="$* -"  # < last program will not process without
-	local p                #   placeholder at end of string.
+                           #   placeholder at end of string.
 
 	printf '%s' "${programs}" | tr '[:space:]' '\n' | ( \
 
@@ -81,45 +82,55 @@ play_music()
 	pkill espeak
 	pkill ffplay
 	
-	local dname_target="$*"
+	local dname_filter_selection="$*"  #  selection from dir filter.
 	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
 	local dpath_music="${PIMP_DPATH_MUSIC}"
 	local dpath_cache="${PIMP_DPATH_CACHE}"
 	local dpath_conf="${PIMP_DPATH_CONF}"
-	local dpath_target
+	local dpath_filter_selection
 	local fpath_mpv_input_conf="${dpath_conf}/input.conf"
 	local fpath_mpv_wl_autosave_script="${dpath_cache}/autosave.lua"
 	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
 	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+
+	#  create directories / files:
 
 	if ! [ -d "${dpath_cache}" ]
 	then
 		mkdir -p "${dpath_cache}" > /dev/null 2>&1
 	fi
 
-	#  if selected from dir filter:
-	if [ -n "${dname_target}" ]
+	if ! [ -d "${dpath_mpv_wl}" ]
 	then
-		#  generate recursive dir file list as playlist file content:
-		if [ -d "${dpath_music}/${dname_target}" ]
+		mkdir -p "${dpath_mpv_wl}" > /dev/null 2>&1
+	fi
+
+	if ! [ -f "${fpath_mpv_wl_autosave_script}" ]
+	then
+		print_mpv_wl_autosave_script > \
+			"${fpath_mpv_wl_autosave_script}"
+	fi
+
+	if ! [ -f "${fpath_mpv_input_conf}" ]
+	then
+		mkdir -p "${dpath_conf}" > /dev/null 2>&1 && \
+			touch "${fpath_mpv_input_conf}"
+	fi
+
+	#  create playlist file:
+
+	if [ -n "${dname_filter_selection}" ]
+	then
+		if [ -d "${dpath_music}/${dname_filter_selection}" ]
 		then
-			dpath_target="$(realpath "${dpath_music}/${dname_target}")"
-			find -L "${dpath_target}" -type f | sort -R > "${fpath_playlist}"
+			dpath_filter_selection="$(realpath "${dpath_music}/${dname_filter_selection}")"
+			find -L "${dpath_filter_selection}" -type f | sort -R > "${fpath_playlist}"
 		else
 			return 1
 		fi
 	fi
 
-	if ! [ -f "${fpath_mpv_input_conf}" ]
-	then
-		mkdir -p "${dpath_conf}" > /dev/null 2>&1
-		touch "${fpath_mpv_input_conf}"
-	fi
-
-	if ! [ -f "${fpath_mpv_wl_autosave_script}" ]
-	then
-		print_mpv_wl_autosave_script > "${fpath_mpv_wl_autosave_script}"
-	fi
+	#  begin music playback:
 
 	if [ -f "${fpath_playlist}" ]
 	then
@@ -127,18 +138,15 @@ play_music()
 
 		case "${os}" in
 			darwin|linux)
-				printf '%spimp: initiating the slap... (⌐■_■)%s\n' "$(tput bold)" "$(tput sgr0)"
+				printf '%spimp: initiating the slap... (⌐■_■)%s\n' \
+					"$(tput bold)" "$(tput sgr0)"
 				;;
 			*)
 				#  accounting for lack of utf-8 console support on *bsd platforms:
-				printf '%spimp: initiating the slap... %s\n' "$(tput bold)" "$(tput sgr0)"
+				printf '%spimp: initiating the slap... %s\n'
+					"$(tput bold)" "$(tput sgr0)"
 				;;
 		esac
-
-		if ! [ -d "${dpath_mpv_wl}" ]
-		then
-			mkdir -p "${dpath_mpv_wl}"
-		fi
 
 		play_sound play
 
@@ -164,7 +172,7 @@ play_music()
 			"$()"
 	else
 		printf 'pimp: playlist file not found: %s\n' "${fpath_playlist}" >&2
-		return 1
+		return 2
 	fi
 }
 
@@ -454,7 +462,8 @@ remove_mpvwl()
 		(play_sound delete &)
 		return 0
 	else
-		printf 'pimp: contents of playback cache directory "%s" could not be deleted.\n' "${dpath_mpv_wl}" >&2
+		printf 'pimp: contents of playback cache directory "%s" could not be deleted.\n' \
+			"${dpath_mpv_wl}" >&2
 		return 1
 	fi
 }
@@ -522,14 +531,15 @@ EOF
 	return 1
 }
 
-if ! check_prereqs "${prereq}"
+if ! check_prerequisites "${prereq}"
 then
 	exit 2
 fi
 
 if ! [ -d "${PIMP_DPATH_MUSIC}" ]
 then
-	printf 'pimp: music directory not found: %s\n' "${PIMP_DPATH_MUSIC}" >&2
+	printf 'pimp: music directory not found: %s\n' \
+		"${PIMP_DPATH_MUSIC}" >&2
 	exit 2
 fi
 
