@@ -14,7 +14,7 @@
 0
 
 arg="$(printf '%s\n' "$*" | awk '{$1=""; print}' | sed 's/^[[:space:]]*//g')"
-prereq="pimp espeak ffplay mpv"
+prereq="pimp espeak ffplay fzf mpv"
 
 PIMP_DPATH_CACHE="${PIMP_DPATH_CACHE-"${HOME}/.cache/pimp"}"
 PIMP_DPATH_CONF="${PIMP_DPATH_CONF-"${HOME}/.config/pimp"}"
