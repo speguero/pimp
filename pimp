@@ -24,7 +24,7 @@ PIMP_FPATH_PLAYLIST="${PIMP_FPATH_PLAYLIST-"${PIMP_DPATH_CACHE}/playlist"}"
 
 check_prerequisites()
 {
-	#  description: ensures program prerequisites are in ${PATH}.
+	#  ensures program prerequisites are in ${PATH}.
 
 	local err=0
 	local p                #   last program will not process without
@@ -52,9 +52,35 @@ check_prerequisites()
 	return $?
 }
 
-get_f_mtime()
+create_program_dirs()
 {
-	#  description: gets modified epoch timestamp of file.
+	#  create directories for program usage.
+
+	local dpath_cache="${PIMP_DPATH_CACHE}"
+	local dpath_conf="${PIMP_DPATH_CONF}"
+	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
+
+	if ! [ -d "${dpath_cache}" ]
+	then
+		mkdir -p "${dpath_cache}" > /dev/null 2>&1
+	fi
+
+	if ! [ -d "${dpath_conf}" ]
+	then
+		mkdir -p "${dpath_conf}" > /dev/null 2>&1
+	fi
+
+	if ! [ -d "${dpath_mpv_wl}" ]
+	then
+		mkdir -p "${dpath_mpv_wl}" > /dev/null 2>&1
+	fi
+
+	return
+}
+
+get_file_modtime()
+{
+	#  gets modified epoch timestamp of file.
 
 	local f="$1"
 	local modtime
@@ -76,33 +102,25 @@ get_f_mtime()
 
 play_music()
 {
-	#  description: plays contents of playlist file.
+	#  plays contents of playlist file.
 
 	pkill espeak
 	pkill ffplay
 	
 	local dname_filter_selection="$*"  #  selection from dir filter.
-	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
-	local dpath_music="${PIMP_DPATH_MUSIC}"
 	local dpath_cache="${PIMP_DPATH_CACHE}"
 	local dpath_conf="${PIMP_DPATH_CONF}"
+	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
+	local dpath_music="${PIMP_DPATH_MUSIC}"
 	local dpath_filter_selection
 	local fpath_mpv_input_conf="${dpath_conf}/input.conf"
 	local fpath_mpv_wl_autosave_script="${dpath_cache}/autosave.lua"
 	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
 	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
-	#  create directories / files:
+	create_program_dirs
 
-	if ! [ -d "${dpath_cache}" ]
-	then
-		mkdir -p "${dpath_cache}" > /dev/null 2>&1
-	fi
-
-	if ! [ -d "${dpath_mpv_wl}" ]
-	then
-		mkdir -p "${dpath_mpv_wl}" > /dev/null 2>&1
-	fi
+	#  create config and script files:
 
 	if ! [ -f "${fpath_mpv_wl_autosave_script}" ]
 	then
@@ -112,25 +130,22 @@ play_music()
 
 	if ! [ -f "${fpath_mpv_input_conf}" ]
 	then
-		mkdir -p "${dpath_conf}" > /dev/null 2>&1 && \
-			touch "${fpath_mpv_input_conf}"
+		touch "${fpath_mpv_input_conf}"
 	fi
 
 	#  create playlist file:
-
 	if [ -n "${dname_filter_selection}" ]
 	then
 		if [ -d "${dpath_music}/${dname_filter_selection}" ]
 		then
 			dpath_filter_selection="$(realpath "${dpath_music}/${dname_filter_selection}")"
-			find -L "${dpath_filter_selection}" -type f | sort -R > "${fpath_playlist}"
+			find -L "${dpath_filter_selection}" -type f > "${fpath_playlist}"
 		else
 			return 1
 		fi
 	fi
 
 	#  begin music playback:
-
 	if [ -f "${fpath_playlist}" ]
 	then
 		clear
@@ -142,11 +157,12 @@ play_music()
 				;;
 			*)
 				#  accounting for lack of utf-8 console support on *bsd platforms:
-				printf '%spimp: initiating the slap... %s\n'
+				printf '%spimp: initiating the slap... %s\n' \
 					"$(tput bold)" "$(tput sgr0)"
 				;;
 		esac
 
+		sort -R "${fpath_playlist}" -o "${fpath_playlist}"
 		play_sound play
 
 		mpv \
@@ -177,7 +193,7 @@ play_music()
 
 play_sound()
 {
-	#  description: produces sound effects for auditory navigation.
+	#  produces sound effects for auditory navigation.
 
 	case "$*" in
 		delete)
@@ -199,36 +215,38 @@ play_sound()
 
 play_tts()
 {
-	#  description: enable text-to-speech for auditory navigation.
+	#  enable text-to-speech for auditory navigation.
 
 	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-	local s
+	local str
 	
 	if [ -z "$*" ]
 	then
-		read -r s
+		read -r str
 	else
-		s="$*"
+		str="$*"
 	fi
 
 	case "${os}" in
 		linux)
-			printf '%s' "${s}" | espeak -a 250 -s 300 || return 1
+			printf '%s' "${str}" | espeak -a 250 -s 300 || return 1
 			;;
 		*)
-			printf '%s' "${s}" | espeak -a 250 -s 235 || return 1
+			printf '%s' "${str}" | espeak -a 250 -s 235 || return 1
 			;;
 	esac
 }
 
 show_dname_filter()
 {
+	#  Shows recursive and interactive list of subdirectories to play.
+
 	local arg_preview
 	local arg_query
 	local arg_quiet="$(printf '%s' "$*" | awk '{print $1}' | grep '^-q$')"
 	local dpath_music="${PIMP_DPATH_MUSIC}"
 	
-	#  facilitates removal of ${dpath_music} from pimp dir filter results:
+	#  facilitates removal of ${dpath_music} from filter list:
 	local int_dpath_sections="$(( $(printf '%s' "${dpath_music}" | sed 's/\// /g' | wc -w) + 2 ))"
 
 	case "${arg_quiet}" in
@@ -250,8 +268,7 @@ show_dname_filter()
 			;;
 	esac
 
-	clear
-	printf "\033]0;pimp\007"  #  set terminal emulator title.
+	set_term_title
 
 	find -L "${dpath_music}" -type d | \
 	cut -d '/' -f "${int_dpath_sections}"- | sed '/^$/d' | sed '1i\
@@ -291,62 +308,23 @@ show_dname_filter()
 
 show_fpath_filter()
 {
-	#  ----------------------------------------------------------------
-	#  purpose of general variables:
-	#  ----------------------------------------------------------------
-	#  
-	#  var int_modtime_plist_*loop
-	#  ---------------------------
-	#  allows for playing contents of playlist file, if modified. gets
-	#  modified timestamp of ${PIMP_FPATH_PLAYLIST} before and after
-	#  `fzf` invocation.
-	#  
-	#  ----------------------------------------------------------------
-	#  purpose of "workaround" variables, due to mandatory "while read"
-	#  loop processing of `fzf` output:
-	#  ----------------------------------------------------------------
-	#  
-	#  var int_pimp_quit
-	#  -----------------
-	#  facilitiates user-requested termination of pimp without
-	#  1) alteraton of playlist file; or 2) playing playlist file, if
-	#  modified by another pimp instance while pimp file filter was
-	#  running.
-	#  
-	#  `exit`, within loop, behaves as `return` or `break`.
-	#  
-	#  var int_pimp_refresh
-	#  --------------------
-	#  facilitiates refresh of pimp file filter without impacting
-	#  resumption of music playback, which can happen due to playlist
-	#  file alteration via loop processing.
-	#  
-	#  `exit`, within loop, behaves as `return` or `break`.
-	#  
-	#  var str_skip_plist_gen
-	#  ----------------------
-	#  facilitates user's wish to resume music playback without
-	#  requiring a restart of pimp or re-selecting what to play.
-	#  
-	#  var i
-	#  -----
-	#  avoids processing of `grep` upon first loop iteration.
+	#  Shows recursive and interactive list of files to play.
 
 	local arg_query="$*"
+	local cmd_pimp_quit='10_cmd_filter_quit'
+	local cmd_pimp_refresh='20_cmd_filter_refresh'
+	local cmd_pimp_resume_playback='30_cmd_resume_playback'
 	local dpath_music="${PIMP_DPATH_MUSIC}"
-	local f
 	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
 	local i=0
-	local int_dpath_sections="$(( $(printf '%s' "${dpath_music}" | sed 's/\// /g' | wc -w) + 2 ))"
-	local int_loop_return_code
-	local int_modtime_plist_preloop="$(get_f_mtime "${fpath_playlist}")"
+	local int_modtime_plist_preloop="$(get_file_modtime "${fpath_playlist}")"
 	local int_modtime_plist_postloop
-	local int_pimp_quit="$(cat /dev/random | tr -dc '1-9' | fold -w 2 | head -n 1)"
-	local int_pimp_refresh="$(cat /dev/random | tr -dc '1-9' | fold -w 2 | head -n 1)"
-	local str_skip_plist_gen="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 10 | head -n 1)"
-	
-	clear
-	printf "\033]0;pimp\007"  #  set terminal emulator title.
+
+	#  facilitates removal of ${dpath_music} from filter list:
+	local int_dpath_sections="$(( $(printf '%s' "${dpath_music}" | sed 's/\// /g' | wc -w) + 2 ))"
+
+	set_term_title
+	(create_program_dirs &)
 	(play_sound select &)
 
 	find -L "${dpath_music}" -type f | \
@@ -367,92 +345,83 @@ show_fpath_filter()
 		--bind 'enter:select-all+accept' \
 		--bind 'double-click:select-all+accept' \
 		--bind 'change:first' \
-		--bind 'backward-eof:execute-silent(pimp play-sound play)' \
+		--bind 'backward-eof:execute-silent(pimp play-sound delete)' \
+		--bind 'alt-bspace:clear-query' \
 		--bind 'home:first' \
 		--bind 'end:last' \
-		--bind "esc:execute(printf '%s\n'    ${int_pimp_quit})+abort" \
-		--bind "tab:execute(printf '%s\n'    ${int_pimp_quit})+abort" \
-		--bind "insert:execute(printf '%s\n' ${int_pimp_quit})+abort" \
-		--bind "alt-q:execute(printf '%s\n'  ${int_pimp_quit})+abort" \
-		--bind "ctrl-q:execute(printf '%s\n' ${int_pimp_quit})+abort" \
-		--bind "f5:execute(printf '%s\n'     ${int_pimp_quit})+abort" \
-		--bind "f6:execute(printf '%s\n'     ${str_skip_plist_gen})+abort" \
-		--bind "f7:execute(printf '%s\n'     ${int_pimp_refresh})+abort" \
-		--bind 'f8:execute(pimp rmwl)' | \
-	while read -r f
-	do
-		if [ ${i} -eq 0 ]
-		then
-			#  exit loop and quit filter:
-			if printf '%s' "${f}" | grep -q "${int_pimp_quit}"
+		--bind "esc:execute(printf '%s\n'    ${cmd_pimp_quit})+abort" \
+		--bind "tab:execute(printf '%s\n'    ${cmd_pimp_quit})+abort" \
+		--bind "insert:execute(printf '%s\n' ${cmd_pimp_quit})+abort" \
+		--bind "alt-q:execute(printf '%s\n'  ${cmd_pimp_quit})+abort" \
+		--bind "ctrl-q:execute(printf '%s\n' ${cmd_pimp_quit})+abort" \
+		--bind "f5:execute(printf '%s\n'     ${cmd_pimp_quit})+abort" \
+		--bind "f6:execute(printf '%s\n'     ${cmd_pimp_resume_playback})+abort" \
+		--bind "f7:execute(printf '%s\n'     ${cmd_pimp_refresh})+abort" \
+		--bind 'f8:execute(pimp rmwl)' | ( \
+
+		#  until `fzf` intuitively enables the processing of multi-line
+		#  output, a while-read subshell, along with case and return
+		#  statements, must be facilitated to mimick said program as it
+		#  would normally behave (when handling single-line output).
+
+		while read -r f
+		do
+			if [ ${i} -eq 0 ]
 			then
-				exit "${int_pimp_quit}"
+				case "${f}" in
+					"${cmd_pimp_quit}")
+						return 10
+						;;
+					"${cmd_pimp_refresh}")
+						return 20
+						;;
+					"${cmd_pimp_resume_playback}")
+						return 30
+						;;
+					*)
+						rm -f "${fpath_playlist}"
+						;;
+				esac
 			fi
 
-			#  exit loop and refresh filter:
-			if printf '%s' "${f}" | grep -q "${int_pimp_refresh}"
-			then
-				exit "${int_pimp_refresh}"
-			fi
+			#  create absolute path and add to playlist file:
+			printf '%s/%s\n' "${dpath_music}" "${f}" >> "${fpath_playlist}"
+			i=$((${i}+1))
 
-			#  resume playback and quit filter upon loop exit:
-			if printf '%s' "${f}" | grep -q "${str_skip_plist_gen}"
+			continue
+		done
+
+		return 0
+	)
+
+	case "$?" in
+		10)
+			return 0
+			;;
+		20)
+			return 100
+			;;
+		30)
+			play_music
+			return 100
+			;;
+		*)
+			int_modtime_plist_postloop="$(get_file_modtime "${fpath_playlist}")"
+
+			if [ "${int_modtime_plist_postloop}" != "${int_modtime_plist_preloop}" ]
 			then
+				remove_mpvwl_cache
 				play_music
-				show_fpath_filter
-				exit "${int_pimp_quit}"
+				return 100
+			else
+				return 0
 			fi
-		fi
-
-		#  delete playlist file if loop was
-		#  not exited during first loop iteration:
-		if [ ${i} -eq 0 ]
-		then
-			rm -f "${fpath_playlist}"
-		fi
-
-		#  add absolute path of filtered files to playlist file:
-		printf '%s/%s\n' "${dpath_music}" "${f}" >> "${fpath_playlist}"
-		i=$((${i}+1))
-		continue
-	done
-
-	#  get exit code deriving from loop:
-	int_loop_return_code="$(printf '%s' $?)"
-
-	#  quit filter:
-	if [ "${int_loop_return_code}" = "${int_pimp_quit}" ]
-	then
-		return
-	fi
-
-	#  refresh filter:
-	if [ "${int_loop_return_code}" = "${int_pimp_refresh}" ]
-	then
-		show_fpath_filter
-		return
-	fi
-
-	#  get timestamp of playlist file once more:
-	int_modtime_plist_postloop="$(get_f_mtime "${fpath_playlist}")"
-
-	#  if no match, shuffle and play contents of playlist file:
-	if [ "${int_modtime_plist_postloop}" != "${int_modtime_plist_preloop}" ]
-	then
-		sort -R "${fpath_playlist}" -o "${fpath_playlist}"
-
-		remove_mpvwl
-		play_music
-		show_fpath_filter
-		return
-	else
-		return
-	fi
+	esac
 }
 
-remove_mpvwl()
+remove_mpvwl_cache()
 {
-	#  description: delete mpv watch_later cache.
+	#  deletes mpv watch_later cache.
 
 	set -u
 
@@ -467,6 +436,12 @@ remove_mpvwl()
 			"${dpath_mpv_wl}" >&2
 		return 1
 	fi
+}
+
+set_term_title()
+{
+	clear
+	printf "\033]0;pimp\007"  
 }
 
 print_mpv_wl_autosave_script()
@@ -547,13 +522,22 @@ fi
 case "$1" in
 	d|dir)
 		show_dname_filter "${arg}"
-		clear
 		exit $?
 		;;
 	f|file)
-		show_fpath_filter "${arg}"
-		clear
-		exit $?
+		while :
+		do
+			show_fpath_filter "${arg}"
+
+			case "$?" in
+				100)
+					continue
+					;;
+				*)
+					exit $?
+					;;
+			esac
+		done
 		;;
 	h|-h)
 		print_usage
@@ -572,7 +556,7 @@ case "$1" in
 		exit $?
 		;;
 	rmwl)
-		remove_mpvwl
+		remove_mpvwl_cache
 		exit $?
 		;;
 	*)
@@ -582,7 +566,6 @@ case "$1" in
 		fi
 
 		show_dname_filter
-		clear
 		exit $?
 		;;
 esac
