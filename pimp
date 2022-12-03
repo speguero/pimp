@@ -62,20 +62,30 @@ create_program_dirs()
 
 	if ! [ -d "${dpath_cache}" ]
 	then
-		mkdir -p "${dpath_cache}" > /dev/null 2>&1
+		if ! mkdir -p "${dpath_cache}"
+		then
+			printf 'pimp: unable to create cache directory: %s\n' "${dpath_cache}" >&2
+			return 2
+		fi
 	fi
 
 	if ! [ -d "${dpath_conf}" ]
 	then
-		mkdir -p "${dpath_conf}" > /dev/null 2>&1
+		if ! mkdir -p "${dpath_conf}"
+		then
+			printf 'pimp: unable to create config directory: %s\n' "${dpath_conf}" >&2
+		fi
 	fi
 
 	if ! [ -d "${dpath_mpv_wl}" ]
 	then
-		mkdir -p "${dpath_mpv_wl}" > /dev/null 2>&1
+		if ! mkdir -p "${dpath_mpv_wl}"
+		then
+			printf 'pimp: unable to create mpv watch_later directory: %s\n' "${dpath_mpv_wl}" >&2
+		fi
 	fi
 
-	return
+	return 0
 }
 
 get_file_modtime()
@@ -106,8 +116,10 @@ play_music()
 
 	pkill espeak
 	pkill ffplay
-	
-	local dname_filter_selection="$*"  #  selection from dir filter.
+
+	local opt="$(printf '%s' "$*" | awk '{print $1}' | grep -o '^\-[a-zA-Z0-9]*')"
+	local str="$(printf '%s' "$*" | sed 's/^\-[a-zA-Z0-9]*//g' | sed 's/^[[:space:]]*//g')"
+
 	local dpath_cache="${PIMP_DPATH_CACHE}"
 	local dpath_conf="${PIMP_DPATH_CONF}"
 	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
@@ -118,38 +130,37 @@ play_music()
 	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
 	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
-	create_program_dirs
+	clear
 
-	#  create config and script files:
-
-	if ! [ -f "${fpath_mpv_wl_autosave_script}" ]
+	if echo "${opt}" | grep -q 'p' && [ -n "${str}" ]  #  create playlist file using dir filter selection.
 	then
-		print_mpv_wl_autosave_script > \
-			"${fpath_mpv_wl_autosave_script}"
-	fi
-
-	if ! [ -f "${fpath_mpv_input_conf}" ]
-	then
-		touch "${fpath_mpv_input_conf}"
-	fi
-
-	#  create playlist file:
-	if [ -n "${dname_filter_selection}" ]
-	then
-		if [ -d "${dpath_music}/${dname_filter_selection}" ]
+		if [ -d "${dpath_music}/${str}" ]
 		then
-			dpath_filter_selection="$(realpath "${dpath_music}/${dname_filter_selection}")"
+			dpath_filter_selection="$(realpath "${dpath_music}/${str}")"
 			find -L "${dpath_filter_selection}" -type f > "${fpath_playlist}"
 		else
 			return 1
 		fi
 	fi
 
-	#  begin music playback:
+	if ! [ -f "${fpath_mpv_wl_autosave_script}" ]
+	then
+		if ! print_mpv_wl_autosave_script > "${fpath_mpv_wl_autosave_script}"
+		then
+			printf 'pimp: unable to create mpv watch_later autosave script: %s\n' "${fpath_mpv_wl_autosave_script}" >&2
+		fi
+	fi
+
+	if ! [ -f "${fpath_mpv_input_conf}" ]
+	then
+		if ! touch "${fpath_mpv_input_conf}"
+		then
+			printf 'pimp: unable to create mpv input configuration file: %s\n' "${fpath_mpv_input_conf}" >&2
+		fi
+	fi
+
 	if [ -f "${fpath_playlist}" ]
 	then
-		clear
-
 		case "${os}" in
 			darwin|linux)
 				printf '%spimp: initiating the slap... (⌐■_■)%s\n' \
@@ -195,7 +206,7 @@ play_sound()
 {
 	#  produces sound effects for auditory navigation.
 
-	case "$*" in
+	case "$1" in
 		delete)
 			ffplay -f lavfi -i 'sine=frequency=500:duration=0.05' \
 				-autoexit -nodisp > /dev/null 2>&1
@@ -210,22 +221,21 @@ play_sound()
 			;;
 	esac
 
-	return $?
+	return 0
 }
 
 play_tts()
 {
 	#  enable text-to-speech for auditory navigation.
-
-	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-	local str
 	
 	if [ -z "$*" ]
 	then
 		read -r str
 	else
-		str="$*"
+		local str="$*"
 	fi
+
+	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
 	case "${os}" in
 		linux)
@@ -239,39 +249,34 @@ play_tts()
 
 show_dname_filter()
 {
-	#  Shows recursive and interactive list of subdirectories to play.
+	#  shows recursive and interactive list of subdirectories to play.
 
-	local arg_preview
-	local arg_query
-	local arg_quiet="$(printf '%s' "$*" | awk '{print $1}' | grep '^-q$')"
+	local opt="$(printf '%s' "$*" | awk '{print $1}' | grep -o '^\-[a-zA-Z0-9]*')"
+	local str="$(printf '%s' "$*" | sed 's/^\-[a-zA-Z0-9]*//g' | sed 's/^[[:space:]]*//g')"
+
+	local opt_q
+
 	local dpath_music="${PIMP_DPATH_MUSIC}"
-	
-	#  facilitates removal of ${dpath_music} from filter list:
-	local int_dpath_sections="$(( $(printf '%s' "${dpath_music}" | sed 's/\// /g' | wc -w) + 2 ))"
+	local fzf_preview
 
-	case "${arg_quiet}" in
-		-q)
-			#  stop tts navigation:
-			arg_query="$(printf '%s' "$*" | awk '{$1=""; print}' | sed 's/^[[:space:]]*//g')"
-			
+	if echo "${opt}" | grep -q 'q'  #  disables selection-based tts / sound effects.
+	then
+		opt_q='-q'
+
+		(play_sound select &)
+	else
+		fzf_preview='printf "%s" {} | sed "s/\//, /g" | pimp play-tts && pimp play-sound select'
+
+		if [ -n "${str}" ]
+		then
 			(play_sound select &)
-			;;
-		*)
-			#  keep tts navigation:
-			arg_preview='printf "%s" {} | sed "s/\//, /g" | pimp play-tts && pimp play-sound select'
-			arg_query="$(printf '%s' "$*" | sed 's/^[[:space:]]*//g')"
-
-			if [ -n "${arg_query}" ]
-			then
-				(play_sound select &)
-			fi
-			;;
-	esac
+		fi
+	fi
 
 	set_term_title
 
 	find -L "${dpath_music}" -type d | \
-	cut -d '/' -f "${int_dpath_sections}"- | sed '/^$/d' | sed '1i\
+	cut -d '/' -f "$(print_parsed_path)" | sed '/^$/d' | sed '1i\
 .
 	' | sort -r | \
 	fzf -i -s -m -e \
@@ -281,15 +286,15 @@ show_dname_filter()
 		--color fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:1,header:11,prompt:7,info:8,query:15 \
 		--prompt '> ' \
 		--algo v1 \
-		--query "${arg_query}" \
+		--query "${str}" \
 		--literal \
 		--cycle \
 		--tac \
 		--layout reverse \
-		--preview "${arg_preview}" \
+		--preview "${fzf_preview}" \
 		--preview-window 0% \
-		--bind 'enter:execute(pimp rmwl; pimp play {}; pimp play-sound select)+clear-query' \
-		--bind 'double-click:execute(pimp rmwl; pimp play {}; pimp play-sound select)+clear-query' \
+		--bind 'enter:execute(pimp rmwl; pimp play -p {}; pimp play-sound select)+clear-query' \
+		--bind 'double-click:execute(pimp rmwl; pimp play -p {}; pimp play-sound select)+clear-query' \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(pimp play-sound play)' \
 		--bind 'bspace:clear-query' \
@@ -301,16 +306,17 @@ show_dname_filter()
 		--bind 'ctrl-q:abort' \
 		--bind 'f5:execute(pimp file)' \
 		--bind 'f6:execute(pimp play; pimp play-sound select)' \
-		--bind "f7:execute(pimp dir ${arg_quiet})+abort" \
+		--bind "f7:execute(pimp dir ${opt_q})+abort" \
 		--bind 'f8:execute(pimp rmwl)' \
 		--bind 'tab:abort'
 }
 
 show_fpath_filter()
 {
-	#  Shows recursive and interactive list of files to play.
+	#  shows recursive and interactive list of files to play.
 
-	local arg_query="$*"
+	local str="$(printf '%s' "$*" | sed 's/^\-[a-zA-Z0-9]*//g' | sed 's/^[[:space:]]*//g')"
+
 	local cmd_pimp_quit='10_cmd_filter_quit'
 	local cmd_pimp_refresh='20_cmd_filter_refresh'
 	local cmd_pimp_resume_playback='30_cmd_resume_playback'
@@ -320,15 +326,11 @@ show_fpath_filter()
 	local int_modtime_plist_preloop="$(get_file_modtime "${fpath_playlist}")"
 	local int_modtime_plist_postloop
 
-	#  facilitates removal of ${dpath_music} from filter list:
-	local int_dpath_sections="$(( $(printf '%s' "${dpath_music}" | sed 's/\// /g' | wc -w) + 2 ))"
-
 	set_term_title
-	(create_program_dirs &)
 	(play_sound select &)
 
 	find -L "${dpath_music}" -type f | \
-	cut -d '/' -f "${int_dpath_sections}"- | sed '/^$/d' | sort -r | \
+	cut -d '/' -f "$(print_parsed_path)" | sed '/^$/d' | sort -r | \
 	fzf -i -s -m -e \
 		--header 'pimp (file)' \
 		--header-first \
@@ -336,7 +338,7 @@ show_fpath_filter()
 		--color fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:12,header:11,prompt:7,info:8,query:15 \
 		--prompt '> ' \
 		--algo v1 \
-		--query "${arg_query}" \
+		--query "${str}" \
 		--literal \
 		--cycle \
 		--tac \
@@ -444,6 +446,19 @@ set_term_title()
 	printf "\033]0;pimp\007"  
 }
 
+print_parsed_path()
+{
+	#  posix solution to count number of directory levels in
+	#  ${PIMP_DPATH_MUSIC}; facilitates removal of ${PIMP_DPATH_MUSIC}
+	#  from filter lists via `cut`.
+
+	local dpath_music="${PIMP_DPATH_MUSIC}"
+	local int_dpath_sections="$(( $(printf '%s' "${dpath_music}" | sed 's/\// /g' | wc -w) + 2 ))"
+
+	printf '%s-' "${int_dpath_sections}" && \
+		return 0
+}
+
 print_mpv_wl_autosave_script()
 {
 	cat <<EOF
@@ -512,10 +527,14 @@ then
 	exit 2
 fi
 
+if ! create_program_dirs
+then
+	exit 2
+fi
+
 if ! [ -d "${PIMP_DPATH_MUSIC}" ]
 then
-	printf 'pimp: music directory not found: %s\n' \
-		"${PIMP_DPATH_MUSIC}" >&2
+	printf 'pimp: music directory not found: %s\n' "${PIMP_DPATH_MUSIC}" >&2
 	exit 2
 fi
 
