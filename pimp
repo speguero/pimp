@@ -59,7 +59,7 @@ show_dname_filter()
 
 		(play_sound select &)
 	else
-		fzf_preview='printf "%s" {} | sed "s/\//, /g" | pimp play-tts && pimp play-sound select'
+		fzf_preview='pimp play-tts {} && pimp play-sound select'
 
 		if [ -n "${str}" ]
 		then
@@ -224,6 +224,7 @@ play_music()
 
 	local opt="$(printf '%s' "$*" | awk '{print $1}' | grep -o '^\-[a-zA-Z0-9]*')"
 	local str="$(printf '%s' "$*" | sed 's/^\-[a-zA-Z0-9]*//g' | sed 's/^[[:space:]]*//g')"
+	local sys="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
 	local dpath_cache="${PIMP_DPATH_CACHE}"
 	local dpath_conf="${PIMP_DPATH_CONF}"
@@ -233,7 +234,6 @@ play_music()
 	local fpath_mpv_input_conf="${dpath_conf}/input.conf"
 	local fpath_mpv_wl_autosave_script="${dpath_cache}/autosave.lua"
 	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
-	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
 	clear
 
@@ -266,7 +266,7 @@ play_music()
 
 	if [ -f "${fpath_playlist}" ]
 	then
-		case "${os}" in
+		case "${sys}" in
 			darwin|linux)
 				printf '%spimp: initiating the slap... (⌐■_■)%s\n' \
 					"$(tput bold)" "$(tput sgr0)"
@@ -313,14 +313,14 @@ check_prerequisites()
 	#  ensures program prerequisites are in ${PATH}.
 
 	local err=0
-	local p=               #   last program will not process without
+	local i=               #   last program will not process without
 	local programs="$* -"  # < placeholder at end of string.
 
 	printf '%s' "${programs}" | tr '[:space:]' '\n' | ( \
 
-		while read -r p
+		while read -r i
 		do
-			if ! command -v "${p}" > /dev/null 2>&1
+			if ! command -v "${i}" > /dev/null 2>&1
 			then
 				if [ ${err} -eq 0 ]
 				then
@@ -328,7 +328,7 @@ check_prerequisites()
 					err=1
 				fi
 				
-				printf '%s\n' " - ${p}" >&2
+				printf '%s\n' " - ${i}" >&2
 			fi
 		done
 
@@ -380,9 +380,9 @@ get_file_modtime()
 
 	local f="$1"
 	local modtime=
-	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+	local sys="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
-	case "${os}" in
+	case "${sys}" in
 		linux)
 			modtime="$(stat -c %Y "${f}")"
 			printf '%s' "${modtime}"
@@ -421,22 +421,16 @@ play_sound()
 play_tts()
 {
 	#  enables text-to-speech auditory navigation for car stereos.
-	
-	if [ -z "$*" ]
-	then
-		read -r str
-	else
-		local str="$*"
-	fi
 
-	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+	local str="$*"
+	local sys="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
-	case "${os}" in
+	case "${sys}" in
 		linux)
-			printf '%s' "${str}" | espeak -a 250 -s 300 || return 1
+			printf '%s' "${str}" | sed 's/\//, /g' | espeak -a 250 -s 300 || return 1
 			;;
 		*)
-			printf '%s' "${str}" | espeak -a 250 -s 235 || return 1
+			printf '%s' "${str}" | sed 's/\//, /g' | espeak -a 250 -s 235 || return 1
 			;;
 	esac
 }
