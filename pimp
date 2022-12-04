@@ -1,17 +1,36 @@
 #!/bin/sh
 
-<<0
-        ::::::::: :::::::::::   :::   :::   :::::::::
-       :+:    :+:    :+:      :+:+: :+:+:  :+:    :+:
-      +:+    +:+    +:+     +:+ +:+:+ +:+ +:+    +:+
-     +#++:++#+     +#+     +#+  +:+  +#+ +#++:++#+
-    +#+           +#+     +#+       +#+ +#+
-   #+#           #+#     #+#       #+# #+#
-  ###       ########### ###       ### ###
-
-                            raspberry pi music player
-                                      -- -     -
-0
+#                   ::::::::: :::::::::::   :::   :::   :::::::::
+#                  :+:    :+:    :+:      :+:+: :+:+:  :+:    :+:
+#                 +:+    +:+    +:+     +:+ +:+:+ +:+ +:+    +:+
+#                +#++:++#+     +#+     +#+  +:+  +#+ +#++:++#+
+#               +#+           +#+     +#+       +#+ +#+
+#              #+#           #+#     #+#       #+# #+#
+#             ###       ########### ###       ### ###
+#
+#                                       raspberry pi music player
+#                                                 -- -     -
+#
+#  MIT License
+#  Copyright (c) 2022 Steven Peguero
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in all
+#  copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#  SOFTWARE.
 
 arg="$(printf '%s\n' "$*" | awk '{$1=""; print}' | sed 's/^[[:space:]]*//g')"
 prereq="pimp espeak ffplay fzf mpv"
@@ -22,231 +41,6 @@ PIMP_DPATH_MPV_WL="${PIMP_DPATH_MPV_WL-"${PIMP_DPATH_CACHE}/playback"}"
 PIMP_DPATH_MUSIC="${PIMP_DPATH_MUSIC-"${HOME}/Music"}"
 PIMP_FPATH_PLAYLIST="${PIMP_FPATH_PLAYLIST-"${PIMP_DPATH_CACHE}/playlist"}"
 
-check_prerequisites()
-{
-	#  ensures program prerequisites are in ${PATH}.
-
-	local err=0
-	local p                #   last program will not process without
-	local programs="$* -"  # < placeholder at end of string.
-
-	printf '%s' "${programs}" | tr '[:space:]' '\n' | ( \
-
-		while read -r p
-		do
-			if ! command -v "${p}" > /dev/null 2>&1
-			then
-				if [ ${err} -eq 0 ]
-				then
-					printf 'pimp: list of prerequisite programs not found within $PATH:\n\n' >&2
-					err=1
-				fi
-				
-				printf '%s\n' " - ${p}" >&2
-			fi
-		done
-
-		return "${err}"
-	)
-
-	return $?
-}
-
-create_program_dirs()
-{
-	#  create directories for program usage.
-
-	local dpath_cache="${PIMP_DPATH_CACHE}"
-	local dpath_conf="${PIMP_DPATH_CONF}"
-	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
-
-	if ! [ -d "${dpath_cache}" ]
-	then
-		if ! mkdir -p "${dpath_cache}"
-		then
-			printf 'pimp: unable to create cache directory: %s\n' "${dpath_cache}" >&2
-			return 2
-		fi
-	fi
-
-	if ! [ -d "${dpath_conf}" ]
-	then
-		if ! mkdir -p "${dpath_conf}"
-		then
-			printf 'pimp: unable to create config directory: %s\n' "${dpath_conf}" >&2
-		fi
-	fi
-
-	if ! [ -d "${dpath_mpv_wl}" ]
-	then
-		if ! mkdir -p "${dpath_mpv_wl}"
-		then
-			printf 'pimp: unable to create mpv watch_later directory: %s\n' "${dpath_mpv_wl}" >&2
-		fi
-	fi
-
-	return 0
-}
-
-get_file_modtime()
-{
-	#  gets modified epoch timestamp of file.
-
-	local f="$1"
-	local modtime
-	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-
-	case "${os}" in
-		linux)
-			modtime="$(stat -c %Y "${f}")"
-			printf '%s' "${modtime}"
-			;;
-		openbsd|*)
-			modtime="$(stat -f %m "${f}")"
-			printf '%s' "${modtime}"
-			;;
-	esac
-
-	return 0
-}
-
-play_music()
-{
-	#  plays contents of playlist file.
-
-	pkill espeak
-	pkill ffplay
-
-	local opt="$(printf '%s' "$*" | awk '{print $1}' | grep -o '^\-[a-zA-Z0-9]*')"
-	local str="$(printf '%s' "$*" | sed 's/^\-[a-zA-Z0-9]*//g' | sed 's/^[[:space:]]*//g')"
-
-	local dpath_cache="${PIMP_DPATH_CACHE}"
-	local dpath_conf="${PIMP_DPATH_CONF}"
-	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
-	local dpath_music="${PIMP_DPATH_MUSIC}"
-	local dpath_filter_selection
-	local fpath_mpv_input_conf="${dpath_conf}/input.conf"
-	local fpath_mpv_wl_autosave_script="${dpath_cache}/autosave.lua"
-	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
-	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-
-	clear
-
-	if echo "${opt}" | grep -q 'p' && [ -n "${str}" ]  #  create playlist file using dir filter selection.
-	then
-		if [ -d "${dpath_music}/${str}" ]
-		then
-			dpath_filter_selection="$(realpath "${dpath_music}/${str}")"
-			find -L "${dpath_filter_selection}" -type f > "${fpath_playlist}"
-		else
-			return 1
-		fi
-	fi
-
-	if ! [ -f "${fpath_mpv_wl_autosave_script}" ]
-	then
-		if ! print_mpv_wl_autosave_script > "${fpath_mpv_wl_autosave_script}"
-		then
-			printf 'pimp: unable to create mpv watch_later autosave script: %s\n' "${fpath_mpv_wl_autosave_script}" >&2
-		fi
-	fi
-
-	if ! [ -f "${fpath_mpv_input_conf}" ]
-	then
-		if ! touch "${fpath_mpv_input_conf}"
-		then
-			printf 'pimp: unable to create mpv input configuration file: %s\n' "${fpath_mpv_input_conf}" >&2
-		fi
-	fi
-
-	if [ -f "${fpath_playlist}" ]
-	then
-		case "${os}" in
-			darwin|linux)
-				printf '%spimp: initiating the slap... (⌐■_■)%s\n' \
-					"$(tput bold)" "$(tput sgr0)"
-				;;
-			*)
-				#  accounting for lack of utf-8 console support on *bsd platforms:
-				printf '%spimp: initiating the slap... %s\n' \
-					"$(tput bold)" "$(tput sgr0)"
-				;;
-		esac
-
-		sort -R "${fpath_playlist}" -o "${fpath_playlist}"
-		play_sound play
-
-		mpv \
-			--af-add=scaletempo=speed=both \
-			--audio-pitch-correction=no \
-			--display-tags= \
-			--input-conf="${fpath_mpv_input_conf}" \
-			--loop-file=no \
-			--loop-playlist=inf \
-			--msg-level=all=no,term-msg=status,statusline=status,cplayer=error,ffmpeg=fatal,ffmpeg/demuxer=error \
-			--no-audio-display \
-			--no-video \
-			--playlist="${fpath_playlist}" \
-			--save-position-on-quit \
-			--script="${fpath_mpv_wl_autosave_script}" \
-			--term-playing-msg='\nPlaying: ${filename}\n' \
-			--term-title='pimp' \
-			--volume=100 \
-			--volume-max=100 \
-			--watch-later-directory="${dpath_mpv_wl}" \
-			--watch-later-options-remove=pause \
-			"$()"
-	else
-		printf 'pimp: playlist file not found: %s\n' "${fpath_playlist}" >&2
-		return 2
-	fi
-}
-
-play_sound()
-{
-	#  produces sound effects for auditory navigation.
-
-	case "$1" in
-		delete)
-			ffplay -f lavfi -i 'sine=frequency=500:duration=0.05' \
-				-autoexit -nodisp > /dev/null 2>&1
-			;;
-		play)
-			ffplay -f lavfi -i 'sine=frequency=1000:duration=0.05' \
-				-autoexit -nodisp > /dev/null 2>&1
-			;;
-		select)
-			ffplay -f lavfi -i 'sine=frequency=2000:duration=0.05' \
-				-autoexit -nodisp > /dev/null 2>&1
-			;;
-	esac
-
-	return 0
-}
-
-play_tts()
-{
-	#  enable text-to-speech for auditory navigation.
-	
-	if [ -z "$*" ]
-	then
-		read -r str
-	else
-		local str="$*"
-	fi
-
-	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-
-	case "${os}" in
-		linux)
-			printf '%s' "${str}" | espeak -a 250 -s 300 || return 1
-			;;
-		*)
-			printf '%s' "${str}" | espeak -a 250 -s 235 || return 1
-			;;
-	esac
-}
-
 show_dname_filter()
 {
 	#  shows recursive and interactive list of subdirectories to play.
@@ -254,10 +48,10 @@ show_dname_filter()
 	local opt="$(printf '%s' "$*" | awk '{print $1}' | grep -o '^\-[a-zA-Z0-9]*')"
 	local str="$(printf '%s' "$*" | sed 's/^\-[a-zA-Z0-9]*//g' | sed 's/^[[:space:]]*//g')"
 
-	local opt_q
+	local opt_q=
 
 	local dpath_music="${PIMP_DPATH_MUSIC}"
-	local fzf_preview
+	local fzf_preview=
 
 	if echo "${opt}" | grep -q 'q'  #  disables selection-based tts / sound effects.
 	then
@@ -276,7 +70,7 @@ show_dname_filter()
 	set_term_title
 
 	find -L "${dpath_music}" -type d | \
-	cut -d '/' -f "$(print_parsed_path)" | sed '/^$/d' | sed '1i\
+	cut -d '/' -f "$(print_cut_field_selection_number)" | sed '/^$/d' | sed '1i\
 .
 	' | sort -r | \
 	fzf -i -s -m -e \
@@ -306,7 +100,7 @@ show_dname_filter()
 		--bind 'ctrl-q:abort' \
 		--bind 'f5:execute(pimp file)' \
 		--bind 'f6:execute(pimp play; pimp play-sound select)' \
-		--bind "f7:execute(pimp dir ${opt_q})+abort" \
+		--bind "f7:abort+execute(pimp dir ${opt_q})+abort" \
 		--bind 'f8:execute(pimp rmwl)' \
 		--bind 'tab:abort'
 }
@@ -324,13 +118,13 @@ show_fpath_filter()
 	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
 	local i=0
 	local int_modtime_plist_preloop="$(get_file_modtime "${fpath_playlist}")"
-	local int_modtime_plist_postloop
+	local int_modtime_plist_postloop=
 
 	set_term_title
 	(play_sound select &)
 
 	find -L "${dpath_music}" -type f | \
-	cut -d '/' -f "$(print_parsed_path)" | sed '/^$/d' | sort -r | \
+	cut -d '/' -f "$(print_cut_field_selection_number)" | sed '/^$/d' | sort -r | \
 	fzf -i -s -m -e \
 		--header 'pimp (file)' \
 		--header-first \
@@ -421,32 +215,231 @@ show_fpath_filter()
 	esac
 }
 
-remove_mpvwl_cache()
+play_music()
 {
-	#  deletes mpv watch_later cache.
+	#  plays contents of playlist file.
 
-	set -u
+	pkill espeak
+	pkill ffplay
 
+	local opt="$(printf '%s' "$*" | awk '{print $1}' | grep -o '^\-[a-zA-Z0-9]*')"
+	local str="$(printf '%s' "$*" | sed 's/^\-[a-zA-Z0-9]*//g' | sed 's/^[[:space:]]*//g')"
+
+	local dpath_cache="${PIMP_DPATH_CACHE}"
+	local dpath_conf="${PIMP_DPATH_CONF}"
 	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
+	local dpath_music="${PIMP_DPATH_MUSIC}"
+	local dpath_filter_selection=
+	local fpath_mpv_input_conf="${dpath_conf}/input.conf"
+	local fpath_mpv_wl_autosave_script="${dpath_cache}/autosave.lua"
+	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
+	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
-	if rm -f "${dpath_mpv_wl}"/* > /dev/null 2>&1
+	clear
+
+	if echo "${opt}" | grep -q 'p' && [ -n "${str}" ]  #  create playlist file using dir filter selection.
 	then
-		(play_sound delete &)
-		return 0
+		if [ -d "${dpath_music}/${str}" ]
+		then
+			dpath_filter_selection="$(realpath "${dpath_music}/${str}")"
+			find -L "${dpath_filter_selection}" -type f > "${fpath_playlist}"
+		else
+			return 1
+		fi
+	fi
+
+	if ! [ -f "${fpath_mpv_wl_autosave_script}" ]
+	then
+		if ! print_mpv_wl_autosave_script > "${fpath_mpv_wl_autosave_script}"
+		then
+			printf 'pimp: unable to create mpv watch_later autosave script: %s\n' "${fpath_mpv_wl_autosave_script}" >&2
+		fi
+	fi
+
+	if ! [ -f "${fpath_mpv_input_conf}" ]
+	then
+		if ! touch "${fpath_mpv_input_conf}"
+		then
+			printf 'pimp: unable to create mpv input configuration file: %s\n' "${fpath_mpv_input_conf}" >&2
+		fi
+	fi
+
+	if [ -f "${fpath_playlist}" ]
+	then
+		case "${os}" in
+			darwin|linux)
+				printf '%spimp: initiating the slap... (⌐■_■)%s\n' \
+					"$(tput bold)" "$(tput sgr0)"
+				;;
+			*)
+				printf '%spimp: initiating the slap... %s\n' \
+					"$(tput bold)" "$(tput sgr0)"
+				;;
+		esac
+
+		sort -R "${fpath_playlist}" -o "${fpath_playlist}"
+		play_sound play
+
+		mpv \
+			--af-add=scaletempo=speed=both \
+			--audio-pitch-correction=no \
+			--display-tags= \
+			--input-conf="${fpath_mpv_input_conf}" \
+			--loop-file=no \
+			--loop-playlist=inf \
+			--msg-level=all=no,term-msg=status,statusline=status,cplayer=error,ffmpeg=fatal,ffmpeg/demuxer=error \
+			--no-audio-display \
+			--no-video \
+			--playlist="${fpath_playlist}" \
+			--save-position-on-quit \
+			--script="${fpath_mpv_wl_autosave_script}" \
+			--term-playing-msg='\nPlaying: ${filename}\n' \
+			--term-title='pimp' \
+			--volume=100 \
+			--volume-max=100 \
+			--watch-later-directory="${dpath_mpv_wl}" \
+			--watch-later-options-remove=pause \
+			"$()"
 	else
-		printf 'pimp: playback cache files stored within "%s" could not be deleted.\n' \
-			"${dpath_mpv_wl}" >&2
-		return 1
+		printf 'pimp: playlist file not found: %s\n' "${fpath_playlist}" >&2
+		return 2
 	fi
 }
 
-set_term_title()
+check_prerequisites()
 {
-	clear
-	printf "\033]0;pimp\007"  
+	#  ensures program prerequisites are in ${PATH}.
+
+	local err=0
+	local p=               #   last program will not process without
+	local programs="$* -"  # < placeholder at end of string.
+
+	printf '%s' "${programs}" | tr '[:space:]' '\n' | ( \
+
+		while read -r p
+		do
+			if ! command -v "${p}" > /dev/null 2>&1
+			then
+				if [ ${err} -eq 0 ]
+				then
+					printf 'pimp: list of prerequisite programs not found within $PATH:\n\n' >&2
+					err=1
+				fi
+				
+				printf '%s\n' " - ${p}" >&2
+			fi
+		done
+
+		return "${err}"
+	)
+
+	return $?
 }
 
-print_parsed_path()
+create_program_dirs()
+{
+	#  create directories for program usage.
+
+	local dpath_cache="${PIMP_DPATH_CACHE}"
+	local dpath_conf="${PIMP_DPATH_CONF}"
+	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
+
+	if ! [ -d "${dpath_cache}" ]
+	then
+		if ! mkdir -p "${dpath_cache}"
+		then
+			printf 'pimp: unable to create cache directory: %s\n' "${dpath_cache}" >&2
+			return 2
+		fi
+	fi
+
+	if ! [ -d "${dpath_conf}" ]
+	then
+		if ! mkdir -p "${dpath_conf}"
+		then
+			printf 'pimp: unable to create config directory: %s\n' "${dpath_conf}" >&2
+		fi
+	fi
+
+	if ! [ -d "${dpath_mpv_wl}" ]
+	then
+		if ! mkdir -p "${dpath_mpv_wl}"
+		then
+			printf 'pimp: unable to create mpv watch_later directory: %s\n' "${dpath_mpv_wl}" >&2
+		fi
+	fi
+
+	return 0
+}
+
+get_file_modtime()
+{
+	#  gets modified epoch timestamp of file.
+
+	local f="$1"
+	local modtime=
+	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+
+	case "${os}" in
+		linux)
+			modtime="$(stat -c %Y "${f}")"
+			printf '%s' "${modtime}"
+			;;
+		openbsd|*)
+			modtime="$(stat -f %m "${f}")"
+			printf '%s' "${modtime}"
+			;;
+	esac
+
+	return 0
+}
+
+play_sound()
+{
+	#  produces sound effects for auditory navigation.
+
+	case "$1" in
+		delete)
+			ffplay -f lavfi -i 'sine=frequency=500:duration=0.05' \
+				-autoexit -nodisp > /dev/null 2>&1
+			;;
+		play)
+			ffplay -f lavfi -i 'sine=frequency=1000:duration=0.05' \
+				-autoexit -nodisp > /dev/null 2>&1
+			;;
+		select)
+			ffplay -f lavfi -i 'sine=frequency=2000:duration=0.05' \
+				-autoexit -nodisp > /dev/null 2>&1
+			;;
+	esac
+
+	return 0
+}
+
+play_tts()
+{
+	#  enables text-to-speech auditory navigation for car stereos.
+	
+	if [ -z "$*" ]
+	then
+		read -r str
+	else
+		local str="$*"
+	fi
+
+	local os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+
+	case "${os}" in
+		linux)
+			printf '%s' "${str}" | espeak -a 250 -s 300 || return 1
+			;;
+		*)
+			printf '%s' "${str}" | espeak -a 250 -s 235 || return 1
+			;;
+	esac
+}
+
+print_cut_field_selection_number()
 {
 	#  posix solution to count number of directory levels in
 	#  ${PIMP_DPATH_MUSIC}; facilitates removal of ${PIMP_DPATH_MUSIC}
@@ -520,6 +513,30 @@ usage: pimp [d|f|h|p|dir|file|play|slap] [-q] [query]
 EOF
 
 	return 1
+}
+
+remove_mpvwl_cache()
+{
+	#  deletes mpv watch_later cache.
+
+	set -u
+
+	local dpath_mpv_wl="${PIMP_DPATH_MPV_WL}"
+
+	if rm -f "${dpath_mpv_wl}"/* > /dev/null 2>&1
+	then
+		(play_sound delete &)
+		return 0
+	else
+		printf 'pimp: playback cache files stored within "%s" could not be deleted.\n' \
+			"${dpath_mpv_wl}" >&2
+		return 1
+	fi
+}
+
+set_term_title()
+{
+	printf "\033]0;pimp\007"  
 }
 
 if ! check_prerequisites "${prereq}"
