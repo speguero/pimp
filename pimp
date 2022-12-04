@@ -90,7 +90,7 @@ show_dname_filter()
 		--bind 'enter:execute(pimp rmwl; pimp play -p {}; pimp play-sound select)+clear-query' \
 		--bind 'double-click:execute(pimp rmwl; pimp play -p {}; pimp play-sound select)+clear-query' \
 		--bind 'change:first' \
-		--bind 'backward-eof:execute-silent(pimp play-sound play)' \
+		--bind 'backward-eof:execute-silent(pimp play-sound delete)' \
 		--bind 'bspace:clear-query' \
 		--bind 'home:first' \
 		--bind 'end:last' \
@@ -103,6 +103,133 @@ show_dname_filter()
 		--bind "f7:abort+execute(pimp dir ${opt_q})+abort" \
 		--bind 'f8:execute(pimp rmwl)' \
 		--bind 'tab:abort'
+}
+
+show_dname_filter_test()
+{
+	#  shows recursive and interactive list of subdirectories to play.
+
+	local opt="$(printf '%s' "$*" | awk '{print $1}' | grep -o '^\-[a-zA-Z0-9]*')"
+	local str="$(printf '%s' "$*" | sed 's/^\-[a-zA-Z0-9]*//g' | sed 's/^[[:space:]]*//g')"
+
+	local cmd_pimp_quit='10_cmd_filter_quit'
+	local cmd_pimp_refresh='20_cmd_filter_refresh'
+	local cmd_pimp_resume_playback='30_cmd_resume_playback'
+	local dpath_music="${PIMP_DPATH_MUSIC}"
+	local fpath_playlist="${PIMP_FPATH_PLAYLIST}"
+	local fzf_preview=
+	local i=0
+	local int_modtime_plist_preloop="$(get_file_modtime "${fpath_playlist}")"
+	local int_modtime_plist_postloop=
+
+	if echo "${opt}" | grep -q 'q'  #  disables selection-based tts / sound effects.
+	then
+		(play_sound select &)
+	else
+		fzf_preview='printf "%s" {} | sed "s/\//, /g" | pimp play-tts && pimp play-sound select'
+
+		if [ -n "${str}" ]
+		then
+			(play_sound select &)
+		fi
+	fi
+
+	set_term_title
+
+	find -L "${dpath_music}" -type d | \
+	cut -d '/' -f "$(print_cut_field_selection_number)" | sed '/^$/d' | sed '1i\
+.
+	' | sort -r | \
+	fzf -i -s -m -e \
+		--header 'pimp (dir)' \
+		--header-first \
+		--border rounded \
+		--color fg:15,fg+:0,bg+:10,hl:9,hl+:1,border:11,gutter:1,header:11,prompt:7,info:8,query:15 \
+		--prompt '> ' \
+		--algo v1 \
+		--query "${str}" \
+		--literal \
+		--cycle \
+		--tac \
+		--layout reverse \
+		--preview "${fzf_preview}" \
+		--preview-window 0% \
+		--bind 'enter:accept+clear-query' \
+		--bind 'double-click:accept+clear-query' \
+		--bind 'change:first' \
+		--bind 'backward-eof:execute-silent(pimp play-sound delete)' \
+		--bind 'bspace:clear-query' \
+		--bind 'alt-bspace:clear-query' \
+		--bind 'home:first' \
+		--bind 'end:last' \
+		--bind "esc:execute(printf '%s\n'    ${cmd_pimp_quit})+abort" \
+		--bind "tab:execute(printf '%s\n'    ${cmd_pimp_quit})+abort" \
+		--bind "insert:execute(printf '%s\n' ${cmd_pimp_quit})+abort" \
+		--bind "alt-q:execute(printf '%s\n'  ${cmd_pimp_quit})+abort" \
+		--bind "ctrl-q:execute(printf '%s\n' ${cmd_pimp_quit})+abort" \
+		--bind "f5:execute(printf '%s\n'     ${cmd_pimp_quit})+abort" \
+		--bind "f6:execute(printf '%s\n'     ${cmd_pimp_resume_playback})+abort" \
+		--bind "f7:execute(printf '%s\n'     ${cmd_pimp_refresh})+abort" \
+		--bind 'f8:execute(pimp rmwl)' | ( \
+
+		#  until `fzf` intuitively enables the processing of multi-line
+		#  output, a while-read subshell, along with case and return
+		#  statements, must be facilitated to mimick said program as it
+		#  would normally behave (when handling single-line output).
+
+		while read -r d
+		do
+			if [ ${i} -eq 0 ]
+			then
+				case "${d}" in
+					"${cmd_pimp_quit}")
+						return 10
+						;;
+					"${cmd_pimp_refresh}")
+						return 20
+						;;
+					"${cmd_pimp_resume_playback}")
+						return 30
+						;;
+					*)
+						rm -f "${fpath_playlist}"
+						;;
+				esac
+			fi
+
+			dpath_selection="$(realpath "${dpath_music}/${d}")"
+			find -L "${dpath_selection}" -type f > "${fpath_playlist}"
+			i=$((${i}+1))
+
+			continue
+		done
+
+		return 0
+	)
+
+	case "$?" in
+		10)
+			return 0
+			;;
+		20)
+			return 100
+			;;
+		30)
+			play_music
+			return 100
+			;;
+		*)
+			int_modtime_plist_postloop="$(get_file_modtime "${fpath_playlist}")"
+
+			if [ "${int_modtime_plist_postloop}" != "${int_modtime_plist_preloop}" ]
+			then
+				remove_mpvwl_cache
+				play_music
+				return 100
+			else
+				return 0
+			fi
+	esac
 }
 
 show_fpath_filter()
@@ -295,8 +422,10 @@ play_music()
 			--script="${fpath_mpv_wl_autosave_script}" \
 			--term-playing-msg='\nPlaying: ${filename}\n' \
 			--term-title='pimp' \
+			--vo=null \
 			--volume=100 \
 			--volume-max=100 \
+			--video=no \
 			--watch-later-directory="${dpath_mpv_wl}" \
 			--watch-later-options-remove=pause \
 			"$()"
@@ -557,8 +686,19 @@ fi
 
 case "$1" in
 	d|dir)
-		show_dname_filter "${arg}"
-		exit $?
+		while :
+		do
+			show_dname_filter_test "${arg}"
+
+			case "$?" in
+				100)
+					continue
+					;;
+				*)
+					exit $?
+					;;
+			esac
+		done
 		;;
 	f|file)
 		while :
