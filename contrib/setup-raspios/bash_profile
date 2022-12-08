@@ -1,0 +1,42 @@
+#!/bin/bash
+
+print-logo()
+{
+	cat <<EOF
+
+          ::::::::: :::::::::::   :::   :::   :::::::::
+         :+:    :+:    :+:      :+:+: :+:+:  :+:    :+:
+        +:+    +:+    +:+     +:+ +:+:+ +:+ +:+    +:+
+       +#++:++#+     +#+     +#+  +:+  +#+ +#++:++#+
+      +#+           +#+     +#+       +#+ +#+
+     #+#           #+#     #+#       #+# #+#
+    ###       ########### ###       ### ###
+
+                              raspberry pi music player
+                                        -- -     -
+EOF
+
+	return 0
+}
+
+if ! [ -d "$HOME/Music" ]
+then
+	mkdir "$HOME/Music" > /dev/null 2>&1
+fi
+
+if [ "$(tty)" = '/dev/tty1' ] && command -v pimp > /dev/null 2>&1
+then
+	clear
+	print-logo
+
+	if [ -f "$HOME/startup.opus" ]
+	then
+		mpv --really-quiet --loop-file=no --volume=150 "$HOME/startup.opus" > /dev/null 2>&1
+	fi
+
+	while :
+	do
+		tmux new-session -n 'pimp' -d 'pimp'
+		tmux -2 attach
+	done
+fi
