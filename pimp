@@ -53,7 +53,7 @@ show_dname_filter()
 	local dpath_music="${PIMP_DPATH_MUSIC}"
 	local fzf_preview=
 
-	if echo "${opt}" | grep -q 'q'  #  disables selection-based tts / sound effects.
+	if printf '%s' "${opt}" | grep -q 'q'  #  disables selection-based tts / sound effects.
 	then
 		opt_q='-q'
 
@@ -237,7 +237,7 @@ play_music()
 
 	clear
 
-	if echo "${opt}" | grep -q 'p' && [ -n "${str}" ]  #  create playlist file using dir filter selection.
+	if printf '%s' "${opt}" | grep -q 'p' && [ -n "${str}" ]  #  create playlist file using dir filter selection.
 	then
 		if [ -d "${dpath_music}/${str}" ]
 		then
@@ -278,7 +278,11 @@ play_music()
 		esac
 
 		sort -R "${fpath_playlist}" -o "${fpath_playlist}"
-		play_sound play
+
+		if ! printf '%s' "${opt}" | grep -q 's'  #  suppress "play" sound effect.
+		then
+			play_sound play
+		fi
 
 		mpv \
 			--af-add=scaletempo=speed=both \
@@ -594,7 +598,7 @@ case "$1" in
 	*)
 		if [ -f "${PIMP_FPATH_PLAYLIST}" ]
 		then
-			play_music
+			play_music "$1"
 		fi
 
 		show_dname_filter
