@@ -1,9 +1,9 @@
-#!/bin/lua
 
 -- autosave.lua
 -- ------------
 -- 
--- Periodically saves watch_later data during mpv playback.
+-- periodically saves watch_later data during mpv playback.
+-- accounts for periodic cached write synchronization on raspberry pi.
 
 os        = require 'os'
 mp        = require 'mp'
@@ -12,6 +12,9 @@ timer_opt = {save_period = 15} -- seconds per mpv watch_later cache save.
 raspi     = false
 
 function platform()
+
+	-- gets running platform / os.
+
 	local out = io.popen('uname -s')
 	local sys = out:read '*line'
 
@@ -30,6 +33,7 @@ function raspi_write_sync()
 		return true
 	end
 
+	-- raspberry pi os:
 	if platform() == 'linux' then
 		f = io.open('/sys/firmware/devicetree/base/model', 'r')
 	end

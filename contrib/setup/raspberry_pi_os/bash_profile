@@ -122,10 +122,14 @@ then
 	clear
 	print-logo
 
+	if ! [ -f "${HOME}/startup.opus" ]
+	then
+		print-startup-sound-data | base64 -d > "${HOME}/startup.opus"
+	fi
+
 	if [ -f "${HOME}/startup.opus" ]
 	then
-		print-startup-sound-data | base64 -d > "${HOME}/startup.opus" && \
-			mpv --really-quiet --loop-file=no --volume=150 "${HOME}/startup.opus" > /dev/null 2>&1
+		mpv --really-quiet --loop-file=no --volume=150 "${HOME}/startup.opus" > /dev/null 2>&1
 	fi
 
 	while :

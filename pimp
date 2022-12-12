@@ -101,6 +101,7 @@ show_dname_filter()
 		--bind 'ctrl-q:abort' \
 		--bind 'f5:execute(pimp file)' \
 		--bind 'f6:execute(pimp play; pimp play-sound select)' \
+		--bind '*:execute(pimp play; pimp play-sound select)' \
 		--bind "f7:reload(pimp dir ${opt_q})+abort" \
 		--bind 'f8:execute(pimp rmwl)'
 }
@@ -152,6 +153,7 @@ show_fpath_filter()
 		--bind "ctrl-q:execute(printf '%s\n' ${cmd_pimp_quit})+abort" \
 		--bind "f5:execute(printf '%s\n'     ${cmd_pimp_quit})+abort" \
 		--bind "f6:execute(printf '%s\n'     ${cmd_pimp_resume_playback})+abort" \
+		--bind "*:execute(printf '%s\n'      ${cmd_pimp_resume_playback})+abort" \
 		--bind "f7:execute(printf '%s\n'     ${cmd_pimp_refresh})+abort" \
 		--bind 'f8:execute(pimp rmwl)' | ( \
 
@@ -455,10 +457,12 @@ print_cut_field_selection_number()
 print_mpv_wl_autosave_script()
 {
 	cat <<EOF
+
 -- autosave.lua
 -- ------------
 -- 
--- Periodically saves watch_later data during mpv playback.
+-- periodically saves watch_later data during mpv playback.
+-- accounts for periodic cached write synchronization on raspberry pi.
 
 os        = require 'os'
 mp        = require 'mp'
@@ -467,6 +471,9 @@ timer_opt = {save_period = 15} -- seconds per mpv watch_later cache save.
 raspi     = false
 
 function platform()
+
+	-- gets running platform / os.
+
 	local out = io.popen('uname -s')
 	local sys = out:read '*line'
 
@@ -485,6 +492,7 @@ function raspi_write_sync()
 		return true
 	end
 
+	-- raspberry pi os:
 	if platform() == 'linux' then
 		f = io.open('/sys/firmware/devicetree/base/model', 'r')
 	end
