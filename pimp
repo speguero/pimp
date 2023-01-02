@@ -45,6 +45,16 @@ show_dname_filter()
 {
 	#  shows recursive and interactive list of subdirectories to play.
 
+	opt()
+	{
+		if printf '%s' "$1" | grep -q "$2"
+		then
+			return 0
+		else
+			return 1
+		fi
+	}
+
 	local opt="$(printf '%s' "$*" | awk '{print $1}' | grep -o '^\-[a-zA-Z0-9]*')"
 	local str="$(printf '%s' "$*" | sed 's/^\-[a-zA-Z0-9]*//g' | sed 's/^[[:space:]]*//g')"
 
@@ -53,8 +63,9 @@ show_dname_filter()
 	local dpath_music="${PIMP_DPATH_MUSIC}"
 	local fzf_preview=
 
-	if printf '%s' "${opt}" | grep -q 'q'  #  disables selection-based tts / sound effects.
+	if opt "${opt}" q
 	then
+		#  disables selection-based tts / sound effects.
 		opt_q='-q'
 
 		(play_sound select &)
@@ -87,8 +98,8 @@ show_dname_filter()
 		--layout reverse \
 		--preview "${fzf_preview}" \
 		--preview-window 0% \
-		--bind 'enter:execute(       pimp rmwl; pimp play -p {}; pimp play-sound select)+clear-query' \
-		--bind 'double-click:execute(pimp rmwl; pimp play -p {}; pimp play-sound select)+clear-query' \
+		--bind 'enter:execute(       pimp rmwl; pimp play -ds {}; pimp play-sound select)+clear-query' \
+		--bind 'double-click:execute(pimp rmwl; pimp play -ds {}; pimp play-sound select)+clear-query' \
 		--bind 'change:first' \
 		--bind 'backward-eof:execute-silent(pimp play-sound delete)' \
 		--bind 'bspace:clear-query' \
@@ -209,7 +220,7 @@ show_fpath_filter()
 			if [ "${int_modtime_plist_postloop}" != "${int_modtime_plist_preloop}" ]
 			then
 				remove_mpvwl_cache
-				play_music
+				play_music -s
 				return 100
 			else
 				return 0
@@ -220,6 +231,16 @@ show_fpath_filter()
 play_music()
 {
 	#  plays contents of playlist file.
+
+	opt()
+	{
+		if printf '%s' "$1" | grep -q "$2"
+		then
+			return 0
+		else
+			return 1
+		fi
+	}
 
 	pkill espeak
 	pkill ffplay
@@ -239,8 +260,10 @@ play_music()
 
 	clear
 
-	if printf '%s' "${opt}" | grep -q 'p' && [ -n "${str}" ]  #  create playlist file using dir filter selection.
+	if opt "${opt}" d && [ -n "${str}" ]
 	then
+		#  create playlist file using dir filter selection.
+
 		if [ -d "${dpath_music}/${str}" ]
 		then
 			dpath_filter_selection="$(realpath "${dpath_music}/${str}")"
@@ -279,11 +302,16 @@ play_music()
 				;;
 		esac
 
-		sort -R "${fpath_playlist}" -o "${fpath_playlist}"
-
-		if ! printf '%s' "${opt}" | grep -q 's'  #  suppress "play" sound effect.
+		if ! opt "${opt}" q
 		then
+			#  play "play" sound effect; otherwise, suppress.
 			play_sound play
+		fi
+
+		if opt "${opt}" s
+		then
+			#  shuffle playlist content.
+			sort -R "${fpath_playlist}" -o "${fpath_playlist}"
 		fi
 
 		mpv \
@@ -545,21 +573,23 @@ EOF
 print_usage()
 {
 	cat <<EOF
-usage: pimp [d|f|h|p|dir|file|play|slap] [-q] [query]
+usage: pimp [d|f|p|dir|file|play|slap] [-qs] [query]
 
-  d, dir [-q] [query]
+  dir, d [-q] [query]
       Display recursive list of subdirectories to play within default
       music directory or PIMP_DPATH_MUSIC.
 
-  f, file [query]
+  |   -q  Disable selection tone and text-to-speech (tts).
+
+  file, f [query]
       Display recursive list of files to play within default music
       directory or PIMP_DPATH_MUSIC.
 
-  p, play, slap
+  play, p, slap [-qs]
       Resume music playback of cached playlist file.
 
-  -q
-      Disable auditory navigation.
+  |   -q  Suppress initialization tone.
+  |   -s  Shuffle cached playlist content.
 EOF
 
 	return 1
@@ -625,7 +655,7 @@ case "$1" in
 			esac
 		done
 		;;
-	h|-h)
+	h|-h|help)
 		print_usage
 		exit $?
 		;;
