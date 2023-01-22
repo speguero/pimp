@@ -135,6 +135,7 @@ then
 	while :
 	do
 		tmux new-session -n 'pimp' -d 'pimp -q'
+		tmux set -g status off
 		tmux -2 attach
 	done
 fi
