@@ -9,4 +9,4 @@ sed -e "/^deb/ s/${sys_codename}/sid/"               -i /etc/apt/sources.list
 apt update
 apt upgrade -y --assume-yes
 apt dist-upgrade -y --assume-yes
-apt install -y --assume-yes espeak fzf mpv tmux
+apt install -y --assume-yes espeak fzf mpv tmux sox

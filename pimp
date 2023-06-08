@@ -12,7 +12,7 @@
 #                                                 -- -     -
 #
 #  MIT License
-#  Copyright (c) 2022 Steven Peguero
+#  Copyright (c) 2022-2023 Steven Peguero
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -33,7 +33,7 @@
 #  SOFTWARE.
 
 arg="$(printf '%s\n' "$*" | awk '{$1=""; print}' | sed 's/^[[:space:]]*//g')"
-prereq="pimp espeak ffplay fzf mpv"
+prereq="pimp espeak sox fzf mpv"
 
 PIMP_DPATH_CACHE="${PIMP_DPATH_CACHE-"${HOME}/.cache/pimp"}"
 PIMP_DPATH_CONF="${PIMP_DPATH_CONF-"${HOME}/.config/pimp"}"
@@ -98,23 +98,21 @@ show_dname_filter()
 		--layout reverse \
 		--preview "${fzf_preview}" \
 		--preview-window 0% \
-		--bind 'enter:execute(       pimp rmwl; pimp play -ds {}; pimp play-sound select)+clear-query' \
-		--bind 'double-click:execute(pimp rmwl; pimp play -ds {}; pimp play-sound select)+clear-query' \
+		--bind 'enter:execute(       pimp rmwl; pimp play -ds {}; pimp play-sound select)' \
+		--bind 'double-click:execute(pimp rmwl; pimp play -ds {}; pimp play-sound select)' \
 		--bind 'change:first' \
-		--bind 'backward-eof:execute-silent(pimp play-sound delete)' \
 		--bind 'bspace:clear-query' \
 		--bind 'home:first' \
 		--bind 'end:last' \
 		--bind 'esc:abort' \
 		--bind 'tab:abort' \
-		--bind 'insert:abort' \
+		--bind 'insert:execute-silent(pimp play-sound filter)+execute(pimp file)+execute-silent(pimp play-sound filter)' \
 		--bind 'alt-q:abort' \
 		--bind 'ctrl-q:abort' \
-		--bind 'f5:execute(pimp file)' \
+		--bind 'f5:execute-silent(pimp play-sound filter)+execute(pimp file)+execute-silent(pimp play-sound filter)' \
 		--bind 'f6:execute(pimp play; pimp play-sound select)' \
 		--bind '*:execute(pimp play; pimp play-sound select)' \
-		--bind "f7:reload(pimp dir ${opt_q})+abort" \
-		--bind 'f8:execute(pimp rmwl)'
+		--bind "f7:reload(pimp dir ${opt_q})+abort"
 }
 
 show_fpath_filter()
@@ -153,7 +151,7 @@ show_fpath_filter()
 		--bind 'enter:select-all+accept' \
 		--bind 'double-click:select-all+accept' \
 		--bind 'change:first' \
-		--bind 'backward-eof:execute-silent(pimp play-sound delete)' \
+		--bind 'backward-eof:execute-silent(pimp play-sound clear)' \
 		--bind 'alt-bspace:clear-query' \
 		--bind 'home:first' \
 		--bind 'end:last' \
@@ -165,8 +163,7 @@ show_fpath_filter()
 		--bind "f5:execute(printf '%s\n'     ${cmd_pimp_quit})+abort" \
 		--bind "f6:execute(printf '%s\n'     ${cmd_pimp_resume_playback})+abort" \
 		--bind "*:execute(printf '%s\n'      ${cmd_pimp_resume_playback})+abort" \
-		--bind "f7:execute(printf '%s\n'     ${cmd_pimp_refresh})+abort" \
-		--bind 'f8:execute(pimp rmwl)' | ( \
+		--bind "f7:execute(printf '%s\n'     ${cmd_pimp_refresh})+abort" | ( \
 
 		#  until `fzf` intuitively enables the processing of multi-line
 		#  output, a while-read subshell, along with case and return
@@ -191,6 +188,11 @@ show_fpath_filter()
 						rm -f "${fpath_playlist}"
 						;;
 				esac
+			fi
+
+			if [ ${i} -eq 200 ]  #  if 200th playlist item is processed (indicating playback delay).
+			then
+				play_sound init
 			fi
 
 			#  create absolute path and add to playlist file:
@@ -243,7 +245,7 @@ play_music()
 	}
 
 	pkill espeak
-	pkill ffplay
+	pkill play
 
 	local opt="$(printf '%s' "$*" | awk '{print $1}' | grep -o '^\-[a-zA-Z0-9]*')"
 	local str="$(printf '%s' "$*" | sed 's/^\-[a-zA-Z0-9]*//g' | sed 's/^[[:space:]]*//g')"
@@ -291,6 +293,13 @@ play_music()
 
 	if [ -f "${fpath_playlist}" ]
 	then
+
+		if opt "${opt}" s
+		then
+			#  shuffle playlist content.
+			sort -R "${fpath_playlist}" -o "${fpath_playlist}"
+		fi
+
 		case "${sys}" in
 			darwin|linux)
 				printf '%spimp: initiating the slap... (⌐■_■)%s\n' \
@@ -301,17 +310,11 @@ play_music()
 					"$(tput bold)" "$(tput sgr0)"
 				;;
 		esac
-
+		
 		if ! opt "${opt}" q
 		then
 			#  play "play" sound effect; otherwise, suppress.
 			play_sound play
-		fi
-
-		if opt "${opt}" s
-		then
-			#  shuffle playlist content.
-			sort -R "${fpath_playlist}" -o "${fpath_playlist}"
 		fi
 
 		mpv \
@@ -435,17 +438,20 @@ play_sound()
 	#  produces sound effects for auditory navigation.
 
 	case "$1" in
-		delete)
-			ffplay -f lavfi -i 'sine=frequency=500:duration=0.05' \
-				-autoexit -nodisp > /dev/null 2>&1
+		select)
+			play -qn synth sine 2000 trim 0 0.05 gain -30
+			;;
+		filter)
+			play -qn synth sine 1500 trim 0 0.05 gain -30
 			;;
 		play)
-			ffplay -f lavfi -i 'sine=frequency=1000:duration=0.05' \
-				-autoexit -nodisp > /dev/null 2>&1
+			play -qn synth sine 1000 trim 0 0.05 gain -30
 			;;
-		select)
-			ffplay -f lavfi -i 'sine=frequency=2000:duration=0.05' \
-				-autoexit -nodisp > /dev/null 2>&1
+		init)
+			play -qn synth sine 500  trim 0 0.05 gain -30
+			;;
+		clear)
+			play -qn synth sine 200  trim 0 0.05 gain -30
 			;;
 	esac
 
@@ -605,7 +611,6 @@ remove_mpvwl_cache()
 
 	if rm -f "${dpath_mpv_wl}"/* > /dev/null 2>&1
 	then
-		(play_sound delete &)
 		return 0
 	else
 		printf 'pimp: playback cache files stored within "%s" could not be deleted.\n' \
