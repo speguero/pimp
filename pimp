@@ -448,10 +448,10 @@ play_sound()
 			play -qn synth sine 1000 trim 0 0.05 gain -30
 			;;
 		init)
-			play -qn synth sine 500  trim 0 0.05 gain -30
+			play -qn synth sine 0500 trim 0 0.05 gain -20
 			;;
 		clear)
-			play -qn synth sine 200  trim 0 0.05 gain -30
+			play -qn synth sine 0200 trim 0 0.05 gain -20
 			;;
 	esac
 
