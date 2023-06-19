@@ -419,6 +419,12 @@ get_file_modtime()
 	local modtime=
 	local sys="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
+	if ! [ -f "${f}" ]
+	then
+		printf 0
+		return 1
+	fi
+
 	case "${sys}" in
 		linux)
 			modtime="$(stat -c %Y "${f}")"
