@@ -323,7 +323,6 @@ play_music()
 			--audio-pitch-correction=no \
 			--display-tags= \
 			--input-conf="${fpath_mpv_input_conf}" \
-			--loop-file=no \
 			--loop-playlist=inf \
 			--msg-level=all=no,term-msg=status,statusline=status,cplayer=error,ffmpeg=fatal,ffmpeg/demuxer=error \
 			--no-audio-display \
@@ -334,11 +333,11 @@ play_music()
 			--term-playing-msg='\nPlaying: ${filename}\n' \
 			--term-title='pimp' \
 			--vo=null \
-			--volume=100 \
 			--volume-max=100 \
 			--video=no \
 			--watch-later-directory="${dpath_mpv_wl}" \
-			--watch-later-options-remove=pause \
+			--watch-later-options=volume,speed,pause,loop-file \
+			--watch-later-options-remove=mute,ab-loop \
 			"$()"
 	else
 		printf 'pimp: playlist file not found: %s\n' "${fpath_playlist}" >&2
@@ -484,10 +483,10 @@ play_tts()
 
 	case "${sys}" in
 		linux)
-			printf '%s' "${str}" | sed 's/\//, /g' | espeak -a 250 -s 300 || return 1
+			printf '%s' "${str}" | sed 's/\//, /g' | espeak -a 100 -s 300 || return 1
 			;;
 		*)
-			printf '%s' "${str}" | sed 's/\//, /g' | espeak -a 250 -s 235 || return 1
+			printf '%s' "${str}" | sed 's/\//, /g' | espeak -a 100 -s 235 || return 1
 			;;
 	esac
 }
