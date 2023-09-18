@@ -1,5 +1,6 @@
-<img src="img/program.gif" alt="" style="border-radius: 5px; margin: auto; display: block;">
+<img src="img/header.png" alt="" style="border-radius: 5px; margin: auto; display: block;">
 
+<br>
 <h1 align="center">pimp</h1>
 
 <p align="center">
@@ -9,5 +10,70 @@
 </p>
 
 <br>
+
+# Commands
+
+### Default Action
+
+Resume music playback of cached playlist file (`pimp play`) and display recursive list of subdirectories to play within default music directory or `$PIMP_DPATH_MUSIC` (`pimp dir`) once playback ends.
+
+```shell
+% pimp
+```
+
+### dir, d [-q] [query]
+
+Display recursive list of subdirectories to play within default music directory or `$PIMP_DPATH_MUSIC`.
+
+<table style="width: 100%; border: 0;">
+	<tr>
+		<td>-q</td>
+		<td>Disable selection tone and text-to-speech (tts).</td>
+	</tr>
+</table>
+
+```shell
+% pimp d
+% pimp d deep house
+% pimp d -q
+% pimp d -q deep house
+```
+
+### file, f [query]
+
+Display recursive list of files to play within default music directory or `$PIMP_DPATH_MUSIC`.
+
+```shell
+% pimp f
+% pimp f mixes 199 fm new york
+```
+
+### play, p, slap [-qs]
+
+Resume music playback of cached playlist file.
+
+<table style="width: 100%; border: 0;">
+	<tr>
+		<td>-q</td>
+		<td>Suppress initialization tone.</td>
+	</tr>
+	<tr>
+		<td>-s</td>
+		<td>Shuffle cached playlist content.</td>
+	</tr>
+</table>
+
+```shell
+% pimp p
+% pimp p -q
+% pimp p -s
+% pimp p -qs
+% pimp play
+% pimp slap
+```
+
+
 <br>
-<h3 align="center"><b>Documentation is in development!</b></h3>
+<br>
+<h3 align="center">Documentation is in development!</h3>
+
