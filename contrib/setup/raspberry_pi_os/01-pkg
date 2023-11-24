@@ -1,12 +1,5 @@
 #!/bin/sh -ue
 
-sys_codename="$(lsb_release -sc)"
-
-sed -e "/deb .*${sys_codename}-security.*/ s/^#*/#/" -i /etc/apt/sources.list
-sed -e "/deb .*${sys_codename}-updates.*/ s/^#*/#/"  -i /etc/apt/sources.list
-sed -e "/^deb/ s/${sys_codename}/sid/"               -i /etc/apt/sources.list
-
 apt update
 apt upgrade -y --assume-yes
-apt dist-upgrade -y --assume-yes
 apt install -y --assume-yes espeak fzf mpv tmux sox
